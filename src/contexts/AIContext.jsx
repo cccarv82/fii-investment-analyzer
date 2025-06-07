@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "./AuthContext";
+import { supabase } from "../lib/supabase";
 
-// 🎯 Contexto da IA com prompts de nível MUNDIAL MELHORADOS
+// 🎯 Contexto da IA com integração completa ao Supabase
 const AIContext = createContext();
 
-// 🤖 Classe para gerenciar IA da OpenAI com estratégias de investimento de elite
+// 🤖 Classe para gerenciar IA da OpenAI com configurações do Supabase
 class OpenAIManager {
   constructor() {
     this.apiKey = null;
@@ -13,23 +15,14 @@ class OpenAIManager {
 
   setApiKey(key) {
     this.apiKey = key;
-    if (key) {
-      localStorage.setItem("fii_analyzer_openai_key", key);
-    } else {
-      localStorage.removeItem("fii_analyzer_openai_key");
-    }
   }
 
   getApiKey() {
-    if (!this.apiKey) {
-      this.apiKey = localStorage.getItem("fii_analyzer_openai_key");
-    }
     return this.apiKey;
   }
 
   // 🚀 Fazer requisição para OpenAI com tratamento robusto
   async makeRequest(messages, temperature = 0.1) {
-    // 🔧 Temperatura baixa para consistência
     if (!this.getApiKey()) {
       throw new Error("API key da OpenAI não configurada");
     }
@@ -263,15 +256,290 @@ RETORNE JSON com esta estrutura:
   "weaknesses": ["fraqueza 1", "fraqueza 2"],
   "suggestedActions": ["ação específica 1", "ação específica 2"],
   "riskAnalysis": {
-    "concentration": "análise de concentração setorial/geográfica",
+    "concentration": "análise de concentração setorial",
     "correlation": "análise de correlação entre ativos",
     "volatility": "análise de volatilidade da carteira",
-    "stressTest": "resultados do stress test"
+    "liquidity": "análise de liquidez dos ativos"
   },
-  "performanceMetrics": {
+  "optimizationSuggestions": {
+    "rebalancing": "sugestões de rebalanceamento",
+    "newPositions": "novas posições sugeridas",
+    "exitPositions": "posições para reduzir/sair",
+    "targetAllocation": "alocação alvo por setor"
+  }
+}`,
+      },
+    ];
+
+    const response = await this.makeRequest(messages, 0.3);
+
+    // 🔧 Limpeza robusta do JSON
+    let cleanResponse = response.trim();
+    if (cleanResponse.startsWith("```json")) {
+      cleanResponse = cleanResponse
+        .replace(/```json\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+    if (cleanResponse.startsWith("```")) {
+      cleanResponse = cleanResponse
+        .replace(/```\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+
+    return JSON.parse(cleanResponse);
+  }
+
+  // 🎯 PROMPT MASTER MELHORADO: Sugestões de investimento personalizadas
+  async generateInvestmentSuggestions(
+    eligibleFIIs,
+    userProfile,
+    currentPortfolio = []
+  ) {
+    const messages = [
+      {
+        role: "system",
+        content: `Você é uma combinação de Warren Buffett + Ray Dalio + Peter Lynch especializada em FIIs brasileiros.
+
+EXPERTISE COMBINADA:
+- Warren Buffett: Value investing, análise fundamentalista rigorosa
+- Ray Dalio: Diversificação inteligente, gestão de risco
+- Peter Lynch: Identificação de oportunidades, crescimento sustentável
+
+METODOLOGIA DE SELEÇÃO AVANÇADA:
+
+1. FILTROS QUANTITATIVOS RIGOROSOS:
+- Dividend Yield: Mínimo 6% (superar Selic 10.75%)
+- P/VP: Máximo 1.30 (valor justo)
+- Liquidez: Volume diário > R$ 100.000
+- Consistência: 12+ meses de distribuições
+- Crescimento: Patrimônio crescente 24 meses
+
+2. ANÁLISE QUALITATIVA PROFUNDA:
+- Gestão: Track record, transparência, governança
+- Ativos: Localização prime, idade, estado de conservação
+- Inquilinos: Diversificação, credit rating, contratos longos
+- Estratégia: Crescimento orgânico vs. aquisições
+- ESG: Certificações, sustentabilidade
+
+3. CONTEXTO MACRO BRASILEIRO:
+- Selic 10.75%: FIIs devem superar CDI
+- Inflação 4.5%: Reajustes contratuais essenciais
+- PIB +2.1%: Demanda por imóveis em recuperação
+- Trabalho híbrido: Impacto permanente em corporativo
+- E-commerce: Boom logístico continua
+
+4. DIVERSIFICAÇÃO INTELIGENTE:
+- Setorial: Máximo 40% em um setor
+- Geográfica: Concentração SP/RJ controlada
+- Por gestora: Máximo 30% em uma gestora
+- Tipo de ativo: Tijolo vs. Recebíveis balanceado
+
+5. PERFIL DE RISCO ADAPTADO:
+- Conservador: DY alto, P/VP baixo, setores defensivos
+- Moderado: Equilíbrio risco/retorno, diversificação
+- Arrojado: Crescimento, setores cíclicos, oportunidades
+
+RETORNE SEMPRE JSON VÁLIDO COM ANÁLISE DETALHADA.`,
+      },
+      {
+        role: "user",
+        content: `Analise estes FIIs e sugira os 4 MELHORES para investimento com metodologia de elite mundial:
+
+FIIS ELEGÍVEIS (${eligibleFIIs.length} analisados):
+${eligibleFIIs
+  .slice(0, 80) // Limitar para não sobrecarregar
+  .map(
+    (fii) =>
+      `- ${fii.ticker}: R$ ${fii.price}, DY ${fii.dividendYield}%, P/VP ${
+        fii.pvp
+      }, Setor: ${fii.sector}, Cap: R$ ${
+        fii.marketCap?.toLocaleString() || "N/A"
+      }`
+  )
+  .join("\n")}
+
+CARTEIRA ATUAL:
+${
+  currentPortfolio.length > 0
+    ? currentPortfolio
+        .map(
+          (p) => `- ${p.ticker}: ${p.shares} cotas, Setor: ${p.sector || "N/A"}`
+        )
+        .join("\n")
+    : "Nenhum investimento atual"
+}
+
+PERFIL DO INVESTIDOR:
+- Perfil de Risco: ${userProfile.riskProfile}
+- Objetivo: ${userProfile.investmentGoal}
+- Prazo: ${userProfile.timeHorizon}
+- Valor para Investir: R$ ${
+          userProfile.investmentAmount?.toLocaleString() || "10.000"
+        }
+
+CONTEXTO MACRO ATUAL:
+- Selic: 10.75% (competição direta)
+- Inflação: 4.5% (reajustes contratuais)
+- PIB: +2.1% (demanda imobiliária)
+
+RETORNE JSON com esta estrutura EXATA:
+{
+  "suggestions": [
+    {
+      "ticker": "CÓDIGO11",
+      "name": "Nome do FII",
+      "price": preço atual,
+      "dividendYield": yield em %,
+      "pvp": P/VP atual,
+      "sector": "setor",
+      "marketCap": market cap,
+      "recommendedShares": número de cotas sugeridas,
+      "recommendedAmount": valor a investir,
+      "score": nota de 0 a 10,
+      "reasoning": "análise detalhada de 200-300 palavras com contexto macro",
+      "strengths": ["força 1", "força 2", "força 3"],
+      "risks": ["risco 1", "risco 2"],
+      "targetPrice": preço-alvo,
+      "timeHorizon": "prazo recomendado",
+      "macroAnalysis": {
+        "selicImpact": "impacto da Selic",
+        "sectorTrends": "tendências do setor",
+        "economicCycle": "posição no ciclo"
+      }
+    }
+  ],
+  "portfolioStrategy": {
+    "overallApproach": "estratégia geral da carteira sugerida",
+    "diversification": "análise de diversificação",
+    "riskManagement": "gestão de risco aplicada",
     "expectedReturn": "retorno esperado anual",
-    "sharpeRatio": "sharpe ratio estimado",
-    "maxDrawdown": "máximo drawdown esperado"
+    "timeHorizon": "prazo recomendado"
+  },
+  "marketAnalysis": {
+    "currentScenario": "cenário atual do mercado de FIIs",
+    "opportunities": "principais oportunidades identificadas",
+    "risks": "principais riscos do momento",
+    "outlook": "perspectivas para os próximos 12 meses"
+  },
+  "summary": {
+    "totalInvestment": valor total sugerido,
+    "averageYield": yield médio da carteira,
+    "averagePVP": P/VP médio,
+    "sectorDistribution": "distribuição por setores",
+    "riskLevel": "BAIXO" | "MÉDIO" | "ALTO"
+  }
+}`,
+      },
+    ];
+
+    const response = await this.makeRequest(messages, 0.1); // Temperatura baixa para consistência
+
+    // 🔧 Limpeza robusta do JSON
+    let cleanResponse = response.trim();
+
+    // Remover markdown se presente
+    if (cleanResponse.startsWith("```json")) {
+      cleanResponse = cleanResponse
+        .replace(/```json\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+    if (cleanResponse.startsWith("```")) {
+      cleanResponse = cleanResponse
+        .replace(/```\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+
+    // Remover texto antes/depois do JSON se presente
+    const jsonStart = cleanResponse.indexOf("{");
+    const jsonEnd = cleanResponse.lastIndexOf("}") + 1;
+
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      cleanResponse = cleanResponse.substring(jsonStart, jsonEnd);
+    }
+
+    try {
+      return JSON.parse(cleanResponse);
+    } catch (error) {
+      console.error("Erro ao fazer parse do JSON:", error);
+      console.error("Response original:", response);
+      console.error("Response limpo:", cleanResponse);
+      throw new Error("Resposta da IA não está em formato JSON válido");
+    }
+  }
+
+  // 🎯 PROMPT MASTER: Análise de mercado geral
+  async generateMarketAnalysis(userProfile) {
+    const messages = [
+      {
+        role: "system",
+        content: `Você é um analista sênior especializado no mercado brasileiro de FIIs.
+
+EXPERTISE: Análise macroeconômica, tendências setoriais, e perspectivas de investimento.
+
+CONTEXTO BRASILEIRO ATUAL (2025):
+- Taxa Selic: 10.75%
+- IPCA: 4.5%
+- PIB: +2.1%
+- Desemprego: 7.8%
+- Câmbio: R$ 5.20/USD
+
+SETORES DE ANÁLISE:
+- Logística: E-commerce, nearshoring
+- Corporativo: Trabalho híbrido, ESG
+- Shoppings: Omnichannel, experiência
+- Residencial: Demografia, habitação
+- Recebíveis: Spread bancário, inadimplência
+
+RETORNE ANÁLISE COMPLETA EM JSON.`,
+      },
+      {
+        role: "user",
+        content: `Faça uma análise completa do mercado de FIIs brasileiro atual:
+
+PERFIL DO INVESTIDOR:
+- Perfil de Risco: ${userProfile.riskProfile}
+- Objetivo: ${userProfile.investmentGoal}
+
+RETORNE JSON com esta estrutura:
+{
+  "marketOverview": {
+    "currentScenario": "cenário atual do mercado",
+    "keyTrends": ["tendência 1", "tendência 2", "tendência 3"],
+    "opportunities": ["oportunidade 1", "oportunidade 2"],
+    "risks": ["risco 1", "risco 2"]
+  },
+  "sectorAnalysis": {
+    "logistics": {
+      "outlook": "perspectiva do setor",
+      "drivers": ["driver 1", "driver 2"],
+      "risks": ["risco 1", "risco 2"]
+    },
+    "corporate": {
+      "outlook": "perspectiva do setor",
+      "drivers": ["driver 1", "driver 2"],
+      "risks": ["risco 1", "risco 2"]
+    },
+    "retail": {
+      "outlook": "perspectiva do setor",
+      "drivers": ["driver 1", "driver 2"],
+      "risks": ["risco 1", "risco 2"]
+    }
+  },
+  "macroAnalysis": {
+    "selicImpact": "impacto da taxa Selic",
+    "inflationEffect": "efeito da inflação",
+    "economicGrowth": "impacto do crescimento econômico",
+    "fiscalPolicy": "política fiscal e impactos"
+  },
+  "recommendations": {
+    "shortTerm": "recomendações para 3-6 meses",
+    "mediumTerm": "recomendações para 6-18 meses",
+    "longTerm": "recomendações para 18+ meses"
+  },
+  "outlook": {
+    "next12Months": "perspectivas para próximos 12 meses",
+    "keyEvents": ["evento importante 1", "evento importante 2"],
+    "expectedReturns": "retornos esperados do setor"
   }
 }`,
       },
@@ -294,293 +562,224 @@ RETORNE JSON com esta estrutura:
 
     return JSON.parse(cleanResponse);
   }
-
-  // 🔧 PROMPT ULTRA MELHORADO: Geração de carteira otimizada
-  async generateInvestmentSuggestions(params) {
-    const { amount, riskProfile, investmentGoal, timeHorizon, availableFiis } =
-      params;
-
-    const messages = [
-      {
-        role: "system",
-        content: `Você é um ESPECIALISTA MUNDIAL em FIIs brasileiros combinando metodologias de:
-- Warren Buffett (análise fundamentalista)
-- Ray Dalio (diversificação inteligente)
-- Harry Markowitz (otimização de portfólio)
-- Benjamin Graham (margem de segurança)
-
-REGRAS CRÍTICAS:
-1. RETORNE APENAS JSON VÁLIDO - SEM TEXTO ADICIONAL
-2. NÃO inclua explicações, desculpas ou comentários
-3. NÃO use markdown ou formatação
-4. SEMPRE retorne o JSON na estrutura exata solicitada
-
-METODOLOGIA AVANÇADA:
-
-ANÁLISE FUNDAMENTALISTA:
-- P/VP: Margem de segurança (Graham)
-- DY: Sustentabilidade vs. Selic
-- Qualidade: Ativos, gestão, inquilinos
-- Crescimento: Orgânico vs. aquisições
-
-DIVERSIFICAÇÃO INTELIGENTE:
-- Setorial: Máximo 25% por FII
-- Correlação: Baixa entre setores
-- Liquidez: Volume mínimo
-- Qualidade: Score fundamentalista
-
-CONTEXTO MACRO BRASILEIRO (2025):
-- Selic 10.75%: FIIs devem superar
-- Inflação 4.5%: Reajustes contratuais
-- PIB +2.1%: Demanda por imóveis
-- Trabalho híbrido: Impacto corporativo
-- E-commerce: Boom logístico
-
-PERFIS DE ALOCAÇÃO OTIMIZADOS:
-
-CONSERVADOR (Buffett Style):
-- Logística: 35% (estabilidade, crescimento)
-- Corporativo: 30% (contratos longos, AAA)
-- Recebíveis: 25% (yield alto, baixa correlação)
-- Shoppings: 10% (recuperação, valor)
-
-MODERADO (Balanced Growth):
-- Logística: 30% (crescimento sustentável)
-- Corporativo: 25% (estabilidade)
-- Recebíveis: 25% (yield)
-- Shoppings: 15% (recuperação)
-- Residencial: 5% (diversificação)
-
-ARROJADO (Growth Focus):
-- Logística: 40% (máximo crescimento)
-- Recebíveis: 30% (yield alto)
-- Corporativo: 15% (estabilidade mínima)
-- Agronegócio: 10% (setor emergente)
-- Data Centers: 5% (tecnologia)
-
-CRITÉRIOS DE SELEÇÃO:
-- DY mínimo: 6% (superar Selic)
-- P/VP máximo: 1.5 (margem segurança)
-- Liquidez: Volume > 50k/dia
-- Market Cap: > 100M (estabilidade)
-- Gestão: Track record > 3 anos`,
-      },
-      {
-        role: "user",
-        content: `Crie carteira OTIMIZADA para:
-
-PARÂMETROS:
-- Valor: R$ ${amount.toLocaleString()}
-- Perfil: ${riskProfile}
-- Objetivo: ${investmentGoal}
-- Prazo: ${timeHorizon}
-
-CONTEXTO MACRO:
-- Selic: 10.75% (competição)
-- Inflação: 4.5% (reajustes)
-- PIB: +2.1% (demanda)
-
-FIIs DISPONÍVEIS (Top 20):
-${availableFiis
-  .slice(0, 20)
-  .map(
-    (fii) =>
-      `${fii.ticker}: R$ ${fii.price} | DY: ${fii.dividendYield}% | P/VP: ${
-        fii.pvp
-      } | ${fii.sector} | Vol: ${fii.volume?.toLocaleString() || "N/A"}`
-  )
-  .join("\n")}
-
-RETORNE APENAS ESTE JSON (sem texto adicional):
-{
-  "suggestions": [
-    {
-      "ticker": "CODIGO11",
-      "percentage": 25.5,
-      "reasoning": "Análise fundamentalista detalhada de 100-150 palavras incluindo contexto macro, qualidade dos ativos, sustentabilidade do yield, e posicionamento no ciclo econômico"
-    }
-  ],
-  "strategy": "Estratégia detalhada de 200-300 palavras explicando a lógica de alocação, diversificação setorial, proteção contra cenários adversos, e alinhamento com perfil de risco",
-  "marketAnalysis": "Análise de mercado de 200-300 palavras incluindo cenário macroeconômico, tendências setoriais, oportunidades e riscos, comparação com Selic e inflação",
-  "riskAnalysis": "Análise de risco de 150-200 palavras cobrindo concentração, correlação, volatilidade esperada, stress testing, e medidas de proteção",
-  "expectedReturn": "8.5% a.a.",
-  "riskLevel": "MÉDIO",
-  "timeHorizon": "2-5 anos"
-}`,
-      },
-    ];
-
-    const response = await this.makeRequest(messages, 0.1); // Temperatura muito baixa
-
-    // 🔧 Limpeza ULTRA robusta do JSON
-    let cleanResponse = response.trim();
-
-    // Remover markdown
-    if (cleanResponse.startsWith("```json")) {
-      cleanResponse = cleanResponse
-        .replace(/```json\s*/, "")
-        .replace(/```\s*$/, "");
-    }
-    if (cleanResponse.startsWith("```")) {
-      cleanResponse = cleanResponse
-        .replace(/```\s*/, "")
-        .replace(/```\s*$/, "");
-    }
-
-    // Remover texto antes/depois do JSON
-    const jsonStart = cleanResponse.indexOf("{");
-    const jsonEnd = cleanResponse.lastIndexOf("}");
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      cleanResponse = cleanResponse.substring(jsonStart, jsonEnd + 1);
-    }
-
-    // Remover quebras de linha problemáticas
-    cleanResponse = cleanResponse.replace(/\n\s*\n/g, " ");
-
-    try {
-      return JSON.parse(cleanResponse);
-    } catch (error) {
-      console.error("Erro ao parsear JSON da IA:", error);
-      console.error("Response original:", response);
-      console.error("Response limpo:", cleanResponse);
-      throw new Error("IA retornou resposta inválida. Tente novamente.");
-    }
-  }
-
-  // 📊 Gerar análise de mercado
-  async generateMarketAnalysis(marketData) {
-    const messages = [
-      {
-        role: "system",
-        content: `Você é um analista sênior de mercado de FIIs brasileiro.
-
-Analise o cenário atual do mercado de FIIs considerando:
-- Contexto macroeconômico (Selic, inflação, PIB)
-- Performance setorial
-- Tendências de longo prazo
-- Oportunidades e riscos
-
-RETORNE análise detalhada em JSON.`,
-      },
-      {
-        role: "user",
-        content: `Analise o mercado atual de FIIs:
-
-DADOS DO MERCADO:
-${JSON.stringify(marketData, null, 2)}
-
-CONTEXTO MACRO:
-- Selic: 10.75%
-- Inflação: 4.5%
-- PIB: +2.1%
-
-RETORNE JSON com análise detalhada de mercado.`,
-      },
-    ];
-
-    const response = await this.makeRequest(messages, 0.3);
-
-    // 🔧 Limpeza robusta do JSON
-    let cleanResponse = response.trim();
-    if (cleanResponse.startsWith("```json")) {
-      cleanResponse = cleanResponse
-        .replace(/```json\s*/, "")
-        .replace(/```\s*$/, "");
-    }
-    if (cleanResponse.startsWith("```")) {
-      cleanResponse = cleanResponse
-        .replace(/```\s*/, "")
-        .replace(/```\s*$/, "");
-    }
-
-    return JSON.parse(cleanResponse);
-  }
 }
 
-// 🎯 Provider do contexto de IA
+// 🎯 Provider do contexto da IA
 export const AIProvider = ({ children }) => {
+  const { user } = useAuth();
+  const [openAIManager] = useState(() => new OpenAIManager());
   const [isConfigured, setIsConfigured] = useState(false);
-  const [aiManager] = useState(() => new OpenAIManager());
+  const [userSettings, setUserSettings] = useState({
+    openai_api_key: "",
+    brapi_token: "",
+  });
+  const [isLoading, setIsLoading] = useState(true);
 
+  // 🔄 Carregar configurações do usuário do Supabase
   useEffect(() => {
-    // Verificar se API key está configurada
-    const apiKey = aiManager.getApiKey();
-    setIsConfigured(!!apiKey);
-  }, [aiManager]);
+    if (user) {
+      loadUserSettings();
+    } else {
+      setIsLoading(false);
+      setIsConfigured(false);
+      setUserSettings({ openai_api_key: "", brapi_token: "" });
+    }
+  }, [user]);
 
-  // 🔧 Configurar API key
+  // 📥 Carregar configurações do Supabase
+  const loadUserSettings = async () => {
+    try {
+      setIsLoading(true);
+      console.log("🔄 [AIContext] Carregando configurações do usuário...");
+
+      const { data, error } = await supabase
+        .from("user_settings")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        throw error;
+      }
+
+      if (data) {
+        console.log("✅ [AIContext] Configurações carregadas:", {
+          openai_configured: !!data.openai_api_key,
+          brapi_configured: !!data.brapi_token,
+        });
+
+        setUserSettings({
+          openai_api_key: data.openai_api_key || "",
+          brapi_token: data.brapi_token || "",
+        });
+
+        // Configurar OpenAI Manager
+        if (data.openai_api_key) {
+          openAIManager.setApiKey(data.openai_api_key);
+          setIsConfigured(true);
+        } else {
+          setIsConfigured(false);
+        }
+      } else {
+        console.log("📝 [AIContext] Nenhuma configuração encontrada");
+        setUserSettings({ openai_api_key: "", brapi_token: "" });
+        setIsConfigured(false);
+      }
+    } catch (err) {
+      console.error("❌ [AIContext] Erro ao carregar configurações:", err);
+      setUserSettings({ openai_api_key: "", brapi_token: "" });
+      setIsConfigured(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 🔧 Funções para gerenciar API key (compatibilidade com Settings antigo)
   const setApiKey = async (key) => {
     try {
-      aiManager.setApiKey(key);
+      console.log("💾 [AIContext] Configurando API key...");
+
+      const { data, error } = await supabase
+        .from("user_settings")
+        .upsert(
+          {
+            user_id: user.id,
+            openai_api_key: key,
+            brapi_token: userSettings.brapi_token,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        )
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      openAIManager.setApiKey(key);
+      setUserSettings((prev) => ({ ...prev, openai_api_key: key }));
       setIsConfigured(!!key);
-      return true;
-    } catch (error) {
-      console.error("Erro ao configurar API key:", error);
-      throw error;
+
+      console.log("✅ [AIContext] API key configurada com sucesso");
+    } catch (err) {
+      console.error("❌ [AIContext] Erro ao configurar API key:", err);
+      throw err;
     }
   };
 
-  // 🔧 Remover API key
-  const removeApiKey = () => {
-    aiManager.setApiKey(null);
-    setIsConfigured(false);
+  const removeApiKey = async () => {
+    try {
+      console.log("🗑️ [AIContext] Removendo API key...");
+
+      const { data, error } = await supabase
+        .from("user_settings")
+        .upsert(
+          {
+            user_id: user.id,
+            openai_api_key: "",
+            brapi_token: userSettings.brapi_token,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        )
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      openAIManager.setApiKey(null);
+      setUserSettings((prev) => ({ ...prev, openai_api_key: "" }));
+      setIsConfigured(false);
+
+      console.log("✅ [AIContext] API key removida com sucesso");
+    } catch (err) {
+      console.error("❌ [AIContext] Erro ao remover API key:", err);
+      throw err;
+    }
   };
 
-  // 🔧 Obter API key atual
   const getApiKey = () => {
-    return aiManager.getApiKey();
+    return userSettings.openai_api_key;
   };
 
-  // 🎯 Gerar sugestões de investimento
-  const generateInvestmentSuggestions = async (params) => {
-    if (!isConfigured) {
-      throw new Error("IA não configurada. Configure sua API key da OpenAI.");
-    }
-    return await aiManager.generateInvestmentSuggestions(params);
+  // 🔧 Função para obter BRAPI token
+  const getBrapiToken = () => {
+    return userSettings.brapi_token;
   };
 
-  // 🎯 Analisar FII individual
+  // 🤖 Funções da IA
   const analyzeFII = async (fiiData, userProfile) => {
     if (!isConfigured) {
-      throw new Error("IA não configurada. Configure sua API key da OpenAI.");
+      throw new Error(
+        "OpenAI não configurada. Configure sua API key nas configurações."
+      );
     }
-    return await aiManager.analyzeFII(fiiData, userProfile);
+    return await openAIManager.analyzeFII(fiiData, userProfile);
   };
 
-  // 🎯 Analisar carteira
   const analyzePortfolio = async (portfolio, userProfile) => {
     if (!isConfigured) {
-      throw new Error("IA não configurada. Configure sua API key da OpenAI.");
+      throw new Error(
+        "OpenAI não configurada. Configure sua API key nas configurações."
+      );
     }
-    return await aiManager.analyzePortfolio(portfolio, userProfile);
+    return await openAIManager.analyzePortfolio(portfolio, userProfile);
   };
 
-  // 📊 Gerar análise de mercado
-  const generateMarketAnalysis = async (marketData) => {
+  const generateInvestmentSuggestions = async (
+    eligibleFIIs,
+    userProfile,
+    currentPortfolio = []
+  ) => {
     if (!isConfigured) {
-      throw new Error("IA não configurada. Configure sua API key da OpenAI.");
+      throw new Error(
+        "OpenAI não configurada. Configure sua API key nas configurações."
+      );
     }
-    return await aiManager.generateMarketAnalysis(marketData);
+    return await openAIManager.generateInvestmentSuggestions(
+      eligibleFIIs,
+      userProfile,
+      currentPortfolio
+    );
+  };
+
+  const generateMarketAnalysis = async (userProfile) => {
+    if (!isConfigured) {
+      throw new Error(
+        "OpenAI não configurada. Configure sua API key nas configurações."
+      );
+    }
+    return await openAIManager.generateMarketAnalysis(userProfile);
   };
 
   const value = {
+    // Estados
     isConfigured,
+    isLoading,
+    userSettings,
+
+    // Funções de configuração (compatibilidade)
     setApiKey,
     removeApiKey,
     getApiKey,
-    generateInvestmentSuggestions,
+    getBrapiToken,
+
+    // Funções da IA
     analyzeFII,
     analyzePortfolio,
+    generateInvestmentSuggestions,
     generateMarketAnalysis,
+
+    // Função para recarregar configurações
+    loadUserSettings,
   };
 
   return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
 };
 
-// 🎯 Hook para usar o contexto de IA
+// 🎯 Hook para usar o contexto
 export const useAI = () => {
   const context = useContext(AIContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useAI deve ser usado dentro de um AIProvider");
   }
   return context;

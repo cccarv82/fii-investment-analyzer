@@ -1,15 +1,16 @@
-// 🚀 SISTEMA COMPLETO DE FIIs COM BRAPI TOKEN SEGURO E DIVIDEND YIELD CORRIGIDO
+// 🚀 SISTEMA COMPLETO DE FIIs COM SUPABASE INTEGRATION E DIVIDEND YIELD CORRIGIDO
 // Acesso a TODOS os FIIs da B3 com dados reais e atualizados
 
 import { cache, CacheKeys, withCache } from "../storage/cache.js";
 
-// 🔑 Configuração SEGURA da API BRAPI
+// 🔑 Configuração SEGURA da API BRAPI com Supabase Integration
 const BRAPI_CONFIG = {
   baseURL: "https://brapi.dev/api",
-  // 🔒 TOKEN SEGURO: Usa variável de ambiente ou localStorage
-  getToken: () => {
-    // Prioridade: variável de ambiente > localStorage > erro
+  // 🔒 TOKEN SEGURO: Agora vem do Supabase via AIContext
+  getToken: (brapiToken = null) => {
+    // Prioridade: token passado > variável de ambiente > localStorage > erro
     return (
+      brapiToken ||
       import.meta.env.VITE_BRAPI_TOKEN ||
       localStorage.getItem("brapi_token") ||
       null
@@ -21,22 +22,30 @@ const BRAPI_CONFIG = {
   retryDelay: 1000,
 };
 
-// 🎯 Gerenciador completo de dados de FIIs
+// 🎯 Gerenciador completo de dados de FIIs com Supabase Integration
 class FIIDataManager {
   constructor() {
     this.requestCount = 0;
     this.lastRequestTime = Date.now();
     this.rateLimitReset = Date.now() + 60000; // Reset a cada minuto
     this.knownFIIs = this.getKnownFIIsList();
+    this.brapiToken = null; // Token será passado pelo AIContext
+  }
+
+  // 🔧 Configurar token via AIContext (novo método)
+  setBrapiToken(token) {
+    this.brapiToken = token;
+    console.log("🔑 [FIIDataManager] BRAPI token configurado:", !!token);
   }
 
   // 🔑 Verificar se token está configurado
   isTokenConfigured() {
-    return !!BRAPI_CONFIG.getToken();
+    return !!BRAPI_CONFIG.getToken(this.brapiToken);
   }
 
-  // 🔧 Configurar token via interface
+  // 🔧 Configurar token via interface (compatibilidade)
   setToken(token) {
+    this.brapiToken = token;
     if (token) {
       localStorage.setItem("brapi_token", token);
     } else {
@@ -243,7 +252,7 @@ class FIIDataManager {
 
   // 🌐 Fazer requisição para BRAPI com retry e token seguro
   async makeRequest(endpoint, params = {}) {
-    const token = BRAPI_CONFIG.getToken();
+    const token = BRAPI_CONFIG.getToken(this.brapiToken);
     if (!token) {
       throw new Error(
         "Token BRAPI não configurado. Configure nas Configurações da aplicação."
@@ -265,7 +274,6 @@ class FIIDataManager {
     for (let attempt = 1; attempt <= BRAPI_CONFIG.retryAttempts; attempt++) {
       try {
         console.log(`🌐 Requisição BRAPI (tentativa ${attempt}): ${endpoint}`);
-
         const response = await fetch(url.toString(), {
           method: "GET",
           headers: {
@@ -326,7 +334,6 @@ class FIIDataManager {
 
       // Combinar com lista conhecida (priorizar conhecidos)
       const uniqueFIIs = [...new Set([...this.knownFIIs, ...allFIIs])];
-
       return uniqueFIIs;
     } catch (error) {
       console.warn(
@@ -403,110 +410,103 @@ class FIIDataManager {
 
       // 💰 Calcular dividend yield CORRIGIDO
       let dividendYield = 0;
+      const price = parseFloat(rawData.regularMarketPrice) || 0;
 
-      // Método 1: Usar dividendsData se disponível
-      if (rawData.dividendsData && rawData.dividendsData.cashDividends) {
-        const dividends = rawData.dividendsData.cashDividends;
-        if (dividends.length > 0) {
-          // Somar dividendos dos últimos 12 meses
-          const oneYearAgo = new Date();
-          oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      if (price > 0) {
+        // 🎯 MÉTODO 1: Calcular baseado em dividendos dos últimos 12 meses
+        if (rawData.dividendsData && rawData.dividendsData.cashDividends) {
+          const now = new Date();
+          const oneYearAgo = new Date(
+            now.getFullYear() - 1,
+            now.getMonth(),
+            now.getDate()
+          );
 
-          const recentDividends = dividends.filter((div) => {
-            const divDate = new Date(div.paymentDate || div.date);
-            return divDate >= oneYearAgo;
-          });
+          const recentDividends = rawData.dividendsData.cashDividends.filter(
+            (div) => {
+              const divDate = new Date(div.paymentDate || div.date);
+              return divDate >= oneYearAgo;
+            }
+          );
 
-          const totalDividends = recentDividends.reduce((sum, div) => {
-            return sum + (parseFloat(div.rate) || 0);
-          }, 0);
-
-          if (totalDividends > 0 && rawData.regularMarketPrice > 0) {
-            dividendYield = (totalDividends / rawData.regularMarketPrice) * 100;
+          if (recentDividends.length > 0) {
+            const totalDividends = recentDividends.reduce((sum, div) => {
+              return sum + (parseFloat(div.rate) || 0);
+            }, 0);
+            dividendYield = (totalDividends / price) * 100;
+            console.log(
+              `✅ ${
+                rawData.symbol
+              } - DY calculado (12m): ${dividendYield.toFixed(2)}%`
+            );
           }
         }
-      }
 
-      // Método 2: Usar fundamentalData se disponível
-      if (dividendYield === 0 && rawData.fundamentalData) {
-        const fundamental = rawData.fundamentalData;
-        if (fundamental.dividendYield) {
-          dividendYield = parseFloat(fundamental.dividendYield) * 100; // Converter para %
-        } else if (fundamental.trailingAnnualDividendYield) {
-          dividendYield =
-            parseFloat(fundamental.trailingAnnualDividendYield) * 100;
+        // 🎯 MÉTODO 2: Usar dados fundamentais se disponível
+        if (dividendYield === 0 && rawData.fundamentalData) {
+          const fundamental = rawData.fundamentalData;
+          if (fundamental.dividendYield) {
+            dividendYield = parseFloat(fundamental.dividendYield) * 100;
+            console.log(
+              `✅ ${rawData.symbol} - DY fundamental: ${dividendYield.toFixed(
+                2
+              )}%`
+            );
+          }
+        }
+
+        // 🎯 MÉTODO 3: Estimativa inteligente baseada no setor (fallback)
+        if (dividendYield === 0) {
+          const sector = this.identifySector(rawData.symbol);
+          const sectorYields = {
+            Logística: 8.5,
+            Corporativo: 7.2,
+            Recebíveis: 9.5,
+            Shopping: 6.8,
+            Residencial: 7.0,
+            Hoteleiro: 6.5,
+            Híbrido: 7.5,
+            Educacional: 7.8,
+            Saúde: 7.3,
+            Agronegócio: 8.0,
+            Industrial: 8.2,
+            "Data Center": 7.5,
+            Outros: 7.0,
+          };
+          dividendYield = sectorYields[sector] || 7.0;
+          console.log(
+            `⚠️ ${
+              rawData.symbol
+            } - DY estimado (${sector}): ${dividendYield.toFixed(2)}%`
+          );
         }
       }
 
-      // Método 3: Estimativa baseada no setor (fallback)
-      if (dividendYield === 0) {
-        const sector = this.classifySector(rawData.symbol);
-        const sectorYields = {
-          Logística: 8.5,
-          Corporativo: 7.2,
-          Shoppings: 6.8,
-          Recebíveis: 9.5,
-          Residencial: 6.5,
-          Hoteleiro: 5.8,
-          Híbrido: 7.8,
-          Educacional: 7.0,
-          Saúde: 6.9,
-          Agronegócio: 8.2,
-          Industrial: 7.5,
-          "Data Center": 6.5,
-        };
-        dividendYield = sectorYields[sector] || 7.0; // Default 7%
-      }
-
-      // 📊 Calcular P/VP
-      let pvp = null;
-      if (rawData.fundamentalData) {
-        pvp =
-          parseFloat(rawData.fundamentalData.priceToBook) ||
-          parseFloat(rawData.fundamentalData.bookValue) ||
-          null;
-      }
-
-      // Se não tiver P/VP, estimar baseado no preço
-      if (!pvp && rawData.regularMarketPrice) {
-        pvp = rawData.regularMarketPrice / 100; // Estimativa conservadora
-      }
-
-      // 🏢 Market Cap
-      let marketCap = null;
-      if (rawData.fundamentalData && rawData.fundamentalData.marketCap) {
-        marketCap = parseFloat(rawData.fundamentalData.marketCap);
-      } else if (rawData.regularMarketPrice) {
-        // Estimativa baseada no preço (FIIs típicos têm ~10M cotas)
-        marketCap = rawData.regularMarketPrice * 10000000; // 10M cotas estimadas
-      }
-
+      // 📊 Processar outros dados
       const processedFII = {
         ticker: rawData.symbol,
         name: rawData.shortName || rawData.longName || rawData.symbol,
-        price: parseFloat(rawData.regularMarketPrice) || 0,
+        price: price,
         dividendYield: Math.round(dividendYield * 100) / 100, // 2 casas decimais
-        pvp: pvp ? Math.round(pvp * 100) / 100 : null,
-        sector: this.classifySector(rawData.symbol),
-        marketCap: marketCap,
-        volume: parseFloat(rawData.regularMarketVolume) || 0,
-        change: parseFloat(rawData.regularMarketChange) || 0,
-        changePercent: parseFloat(rawData.regularMarketChangePercent) || 0,
+        pvp: this.calculatePVP(rawData),
+        sector: this.identifySector(rawData.symbol),
+        marketCap: this.calculateMarketCap(rawData),
+        volume: this.calculateVolume(rawData),
         lastUpdate: new Date().toISOString(),
 
         // Dados adicionais para análise
-        qualityScore: this.calculateQualityScore({
-          dividendYield,
-          pvp,
-          marketCap,
-          volume: rawData.regularMarketVolume,
-        }),
+        fundamentalData: rawData.fundamentalData || {},
+        summaryProfile: rawData.summaryProfile || {},
+        dividendsData: rawData.dividendsData || {},
 
-        // Volatilidade estimada
-        volatility: this.calculateVolatility(rawData),
+        // Métricas calculadas
+        metrics: {
+          liquidez: this.calculateLiquidity(rawData),
+          volatilidade: this.calculateVolatility(rawData),
+          consistencia: this.calculateConsistency(rawData),
+        },
       };
 
-      // 🔍 DEBUG: Log do resultado processado
       console.log(`✅ ${rawData.symbol} processado:`, {
         price: processedFII.price,
         dividendYield: processedFII.dividendYield,
@@ -516,13 +516,13 @@ class FIIDataManager {
 
       return processedFII;
     } catch (error) {
-      console.warn(`⚠️ Erro ao processar ${rawData?.symbol}:`, error.message);
+      console.error(`❌ Erro ao processar ${rawData?.symbol}:`, error);
       return null;
     }
   }
 
-  // 🏷️ Classificar setor do FII baseado no ticker
-  classifySector(ticker) {
+  // 🏢 Identificar setor do FII baseado no ticker
+  identifySector(ticker) {
     const sectorMap = {
       // Logística
       HGLG11: "Logística",
@@ -532,6 +532,7 @@ class FIIDataManager {
       LVBI11: "Logística",
       RBRR11: "Logística",
       GGRC11: "Logística",
+      FIIP11B: "Logística",
       JSRE11: "Logística",
       ALZR11: "Logística",
       RBRL11: "Logística",
@@ -549,31 +550,31 @@ class FIIDataManager {
       KISU11: "Logística",
       RLOG11: "Logística",
 
-      // Shoppings
-      VISC11: "Shoppings",
-      MALL11: "Shoppings",
-      XPML11: "Shoppings",
-      HSML11: "Shoppings",
-      BRML11: "Shoppings",
-      ALMI11: "Shoppings",
-      JRDM11: "Shoppings",
-      RBDS11: "Shoppings",
-      SPTW11: "Shoppings",
-      SHOP11: "Shoppings",
-      URPR11: "Shoppings",
-      GCRA11: "Shoppings",
-      PORD11: "Shoppings",
-      NEWU11: "Shoppings",
-      RBVA11: "Shoppings",
-      BMLC11: "Shoppings",
-      SHPH11: "Shoppings",
-      NSLU11: "Shoppings",
-      BBVJ11: "Shoppings",
-      FVPQ11: "Shoppings",
-      OUJP11: "Shoppings",
-      PLCR11: "Shoppings",
-      RBGS11: "Shoppings",
-      TORD11: "Shoppings",
+      // Shopping
+      VISC11: "Shopping",
+      MALL11: "Shopping",
+      XPML11: "Shopping",
+      HSML11: "Shopping",
+      BRML11: "Shopping",
+      ALMI11: "Shopping",
+      JRDM11: "Shopping",
+      RBDS11: "Shopping",
+      SPTW11: "Shopping",
+      SHOP11: "Shopping",
+      URPR11: "Shopping",
+      GCRA11: "Shopping",
+      PORD11: "Shopping",
+      NEWU11: "Shopping",
+      RBVA11: "Shopping",
+      BMLC11: "Shopping",
+      SHPH11: "Shopping",
+      NSLU11: "Shopping",
+      BBVJ11: "Shopping",
+      FVPQ11: "Shopping",
+      OUJP11: "Shopping",
+      PLCR11: "Shopping",
+      RBGS11: "Shopping",
+      TORD11: "Shopping",
 
       // Corporativo
       KNRI11: "Corporativo",
@@ -680,194 +681,194 @@ class FIIDataManager {
       DIGI11: "Data Center",
     };
 
-    return sectorMap[ticker] || "Híbrido";
+    return sectorMap[ticker] || "Outros";
   }
 
-  // 📊 Calcular score de qualidade
-  calculateQualityScore(data) {
-    let score = 50; // Base
-
-    // DY Score (0-30 pontos)
-    if (data.dividendYield >= 8) score += 30;
-    else if (data.dividendYield >= 6) score += 20;
-    else if (data.dividendYield >= 4) score += 10;
-
-    // P/VP Score (0-25 pontos)
-    if (data.pvp && data.pvp <= 0.8) score += 25;
-    else if (data.pvp && data.pvp <= 1.0) score += 20;
-    else if (data.pvp && data.pvp <= 1.2) score += 15;
-    else if (data.pvp && data.pvp <= 1.5) score += 10;
-
-    // Market Cap Score (0-15 pontos)
-    if (data.marketCap >= 1000000000) score += 15; // > 1B
-    else if (data.marketCap >= 500000000) score += 12; // > 500M
-    else if (data.marketCap >= 200000000) score += 8; // > 200M
-    else if (data.marketCap >= 100000000) score += 5; // > 100M
-
-    // Volume Score (0-10 pontos)
-    if (data.volume >= 1000000) score += 10; // > 1M
-    else if (data.volume >= 500000) score += 8; // > 500K
-    else if (data.volume >= 100000) score += 5; // > 100K
-
-    return Math.min(100, Math.max(0, score));
-  }
-
-  // 📈 Calcular volatilidade
-  calculateVolatility(data) {
+  // 📊 Calcular P/VP
+  calculatePVP(rawData) {
     try {
-      if (data.historicalDataPrice && data.historicalDataPrice.length > 20) {
-        const prices = data.historicalDataPrice.map((p) => p.close);
+      const price = parseFloat(rawData.regularMarketPrice) || 0;
+      const bookValue = parseFloat(rawData.fundamentalData?.bookValue) || 0;
+
+      if (price > 0 && bookValue > 0) {
+        return Math.round((price / bookValue) * 100) / 100;
+      }
+
+      // Fallback: estimativa baseada no setor
+      const sector = this.identifySector(rawData.symbol);
+      const sectorPVPs = {
+        Logística: 1.05,
+        Corporativo: 0.95,
+        Recebíveis: 1.15,
+        Shopping: 0.85,
+        Residencial: 0.9,
+        Hoteleiro: 0.8,
+        Híbrido: 1.0,
+        Educacional: 0.95,
+        Saúde: 1.1,
+        Agronegócio: 1.05,
+        Industrial: 1.0,
+        "Data Center": 1.2,
+        Outros: 1.0,
+      };
+
+      return sectorPVPs[sector] || 1.0;
+    } catch (error) {
+      return 1.0;
+    }
+  }
+
+  // 💰 Calcular Market Cap
+  calculateMarketCap(rawData) {
+    try {
+      const price = parseFloat(rawData.regularMarketPrice) || 0;
+      const shares =
+        parseFloat(rawData.fundamentalData?.sharesOutstanding) || 0;
+
+      if (price > 0 && shares > 0) {
+        return Math.round(price * shares);
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // 📊 Calcular Volume
+  calculateVolume(rawData) {
+    try {
+      return parseFloat(rawData.regularMarketVolume) || 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  // 💧 Calcular Liquidez
+  calculateLiquidity(rawData) {
+    try {
+      const volume = parseFloat(rawData.regularMarketVolume) || 0;
+      const price = parseFloat(rawData.regularMarketPrice) || 0;
+
+      if (volume > 0 && price > 0) {
+        return volume * price; // Volume financeiro
+      }
+
+      return 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  // 📈 Calcular Volatilidade (estimativa)
+  calculateVolatility(rawData) {
+    try {
+      // Estimativa baseada em dados históricos se disponível
+      if (
+        rawData.historicalDataPrice &&
+        rawData.historicalDataPrice.length > 1
+      ) {
+        const prices = rawData.historicalDataPrice.map((d) =>
+          parseFloat(d.close)
+        );
         const returns = [];
 
         for (let i = 1; i < prices.length; i++) {
           returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
         }
 
-        const variance = this.calculateVariance(returns);
+        const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+        const variance =
+          returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) /
+          returns.length;
+
         return Math.sqrt(variance) * Math.sqrt(252); // Volatilidade anualizada
       }
+
+      return 0.15; // Volatilidade padrão estimada para FIIs
     } catch (error) {
-      return 0.18; // Fallback
+      return 0.15;
     }
-
-    // Estimativa baseada no setor
-    const sectorVolatility = {
-      Logística: 0.15,
-      Corporativo: 0.18,
-      Shoppings: 0.22,
-      Recebíveis: 0.12,
-      Residencial: 0.2,
-      Hoteleiro: 0.25,
-      Híbrido: 0.18,
-    };
-
-    const sector = this.classifySector(data.symbol);
-    return sectorVolatility[sector] || 0.18;
   }
 
-  // 📊 Calcular variância
-  calculateVariance(values) {
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const squaredDiffs = values.map((value) => Math.pow(value - mean, 2));
-    return squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
-  }
+  // 🎯 Calcular Consistência de dividendos
+  calculateConsistency(rawData) {
+    try {
+      if (rawData.dividendsData && rawData.dividendsData.cashDividends) {
+        const dividends = rawData.dividendsData.cashDividends;
 
-  // 🎯 Função principal: obter todos os FIIs com cache
-  async getAllFIIs() {
-    return withCache(
-      CacheKeys.ALL_FIIS,
-      async () => {
-        console.log("🚀 Iniciando busca completa de FIIs...");
+        if (dividends.length >= 12) {
+          // Calcular coeficiente de variação dos últimos 12 dividendos
+          const values = dividends
+            .slice(-12)
+            .map((d) => parseFloat(d.rate) || 0);
+          const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
+          const variance =
+            values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) /
+            values.length;
+          const stdDev = Math.sqrt(variance);
 
-        // 1. Obter lista de todos os FIIs disponíveis
-        const allTickers = await this.getAllAvailableFIIs();
-        console.log(`📋 ${allTickers.length} FIIs identificados`);
+          return mean > 0 ? 1 - stdDev / mean : 0; // Quanto menor a variação, maior a consistência
+        }
+      }
 
-        // 2. Priorizar FIIs conhecidos (melhor qualidade de dados)
-        const prioritizedTickers = [
-          ...this.knownFIIs,
-          ...allTickers.filter((ticker) => !this.knownFIIs.includes(ticker)),
-        ].slice(0, 150); // Limitar para não exceder rate limit
-
-        // 3. Buscar dados detalhados
-        const fiiData = await this.getFIIData(prioritizedTickers);
-
-        // 4. Filtrar e ordenar por qualidade
-        const validFIIs = fiiData
-          .filter((fii) => fii && fii.price > 0)
-          .sort((a, b) => b.qualityScore - a.qualityScore);
-
-        console.log(`✅ ${validFIIs.length} FIIs processados com sucesso`);
-
-        return validFIIs;
-      },
-      15 * 60 * 1000 // Cache por 15 minutos (dados atualizados a cada 15min na BRAPI)
-    );
-  }
-
-  // 🔍 Filtrar FIIs por critérios
-  filterFIIsByProfile(fiis, profile) {
-    const { riskProfile, investmentGoal, timeHorizon } = profile;
-
-    let filtered = [...fiis];
-
-    // Filtros por perfil de risco
-    if (riskProfile === "conservador") {
-      filtered = filtered.filter(
-        (fii) =>
-          fii.dividendYield >= 6 &&
-          fii.pvp <= 1.2 &&
-          ["Logística", "Corporativo", "Recebíveis"].includes(fii.sector)
-      );
-    } else if (riskProfile === "moderado") {
-      filtered = filtered.filter(
-        (fii) => fii.dividendYield >= 5 && fii.pvp <= 1.5
-      );
-    } else if (riskProfile === "arrojado") {
-      filtered = filtered.filter(
-        (fii) => fii.dividendYield >= 4 && fii.pvp <= 2.0
-      );
+      return 0.5; // Consistência média estimada
+    } catch (error) {
+      return 0.5;
     }
-
-    // Filtros por objetivo
-    if (investmentGoal === "renda") {
-      filtered = filtered.filter((fii) => fii.dividendYield >= 7);
-    } else if (investmentGoal === "crescimento") {
-      filtered = filtered.filter((fii) =>
-        ["Logística", "Agronegócio", "Industrial"].includes(fii.sector)
-      );
-    }
-
-    // Ordenar por score de qualidade
-    return filtered
-      .sort((a, b) => b.qualityScore - a.qualityScore)
-      .slice(0, 50); // Top 50 para análise
   }
 
-  // 📊 Obter estatísticas do mercado
-  getMarketStatistics(fiis) {
-    if (!fiis || fiis.length === 0) return null;
+  // 🎯 Método principal para obter dados com token do Supabase
+  async getAllFIIData(brapiToken = null) {
+    try {
+      console.log(
+        "🚀 [FIIDataManager] Iniciando carregamento de dados de FIIs..."
+      );
 
-    const totalFiis = fiis.length;
-    const averageDY =
-      fiis.reduce((sum, fii) => sum + fii.dividendYield, 0) / totalFiis;
-    const averagePVP = fiis.reduce((sum, fii) => sum + fii.pvp, 0) / totalFiis;
-    const totalMarketCap = fiis.reduce(
-      (sum, fii) => sum + (fii.marketCap || 0),
-      0
-    );
-    const averageVolume =
-      fiis.reduce((sum, fii) => sum + (fii.volume || 0), 0) / totalFiis;
+      // Configurar token se fornecido
+      if (brapiToken) {
+        this.setBrapiToken(brapiToken);
+      }
 
-    // Distribuição setorial
-    const sectorDistribution = {};
-    fiis.forEach((fii) => {
-      sectorDistribution[fii.sector] =
-        (sectorDistribution[fii.sector] || 0) + 1;
-    });
+      // Verificar se token está configurado
+      if (!this.isTokenConfigured()) {
+        throw new Error(
+          "Token BRAPI não configurado. Configure nas Configurações da aplicação."
+        );
+      }
 
-    return {
-      totalFiis,
-      averageDY: Number(averageDY.toFixed(2)),
-      averagePVP: Number(averagePVP.toFixed(2)),
-      totalMarketCap,
-      averageVolume: Number(averageVolume.toFixed(0)),
-      sectorDistribution,
-      lastUpdate: new Date().toISOString(),
-    };
+      // Obter lista de FIIs
+      const allFIIs = await this.getAllAvailableFIIs();
+      console.log(`📋 ${allFIIs.length} FIIs encontrados`);
+
+      // Obter dados detalhados
+      const fiiData = await this.getFIIData(allFIIs);
+      console.log(`✅ ${fiiData.length} FIIs processados com sucesso`);
+
+      return fiiData;
+    } catch (error) {
+      console.error("❌ [FIIDataManager] Erro ao carregar dados:", error);
+      throw error;
+    }
   }
 }
 
-// 🎯 Instância global do gerenciador
+// 🎯 Instância singleton
 const fiiDataManager = new FIIDataManager();
 
-// 🚀 Funções exportadas para uso na aplicação
-export const getAllFIIs = () => fiiDataManager.getAllFIIs();
-export const filterFIIsByProfile = (fiis, profile) =>
-  fiiDataManager.filterFIIsByProfile(fiis, profile);
-export const getMarketStatistics = (fiis) =>
-  fiiDataManager.getMarketStatistics(fiis);
-export const isTokenConfigured = () => fiiDataManager.isTokenConfigured();
-export const setToken = (token) => fiiDataManager.setToken(token);
+// 🎯 Função principal para uso externo
+export const getAllFIIData = async (brapiToken = null) => {
+  return await fiiDataManager.getAllFIIData(brapiToken);
+};
+
+// 🎯 Função para configurar token
+export const setBrapiToken = (token) => {
+  fiiDataManager.setBrapiToken(token);
+};
+
+// 🎯 Função para verificar configuração
+export const isTokenConfigured = () => {
+  return fiiDataManager.isTokenConfigured();
+};
 
 export default fiiDataManager;

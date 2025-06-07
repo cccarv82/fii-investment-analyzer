@@ -11,6 +11,8 @@ import {
   PieChart,
   AlertCircle,
   FileText,
+  Edit,
+  X,
 } from "lucide-react";
 import {
   Card,
@@ -43,6 +45,8 @@ const Portfolio = () => {
     portfolios,
     currentPortfolio,
     addInvestment,
+    updateInvestment,
+    removeInvestment,
     addDividend,
     exportData,
     importData,
@@ -52,6 +56,7 @@ const Portfolio = () => {
 
   const [showAddInvestment, setShowAddInvestment] = useState(false);
   const [showAddDividend, setShowAddDividend] = useState(false);
+  const [showEditInvestment, setShowEditInvestment] = useState(null);
   const [investmentForm, setInvestmentForm] = useState({
     ticker: "",
     name: "",
@@ -65,7 +70,7 @@ const Portfolio = () => {
     date: new Date().toISOString().split("T")[0],
   });
 
-  // ✅ CORREÇÃO: Calcular estatísticas da carteira atual
+  // ✅ CORREÇÃO: Calcular estatísticas da carteira atual com DEBUG
   const getPortfolioStats = () => {
     if (!currentPortfolio || !currentPortfolio.investments) {
       return {
@@ -81,15 +86,26 @@ const Portfolio = () => {
     const activeInvestments = currentPortfolio.investments.filter(
       (inv) => inv.is_active
     );
+    console.log("🔍 DEBUG - Investimentos ativos:", activeInvestments);
 
-    const totalInvested = activeInvestments.reduce(
-      (sum, inv) => sum + (inv.total_invested || 0),
-      0
-    );
-    const currentValue = activeInvestments.reduce(
-      (sum, inv) => sum + (inv.current_value || inv.total_invested || 0),
-      0
-    );
+    const totalInvested = activeInvestments.reduce((sum, inv) => {
+      const invested =
+        inv.total_invested || inv.shares * inv.average_price || 0;
+      console.log(
+        `💰 ${inv.ticker}: ${inv.shares} cotas × R$ ${inv.average_price} = R$ ${invested}`
+      );
+      return sum + invested;
+    }, 0);
+
+    const currentValue = activeInvestments.reduce((sum, inv) => {
+      const current =
+        inv.current_value ||
+        inv.total_invested ||
+        inv.shares * inv.average_price ||
+        0;
+      return sum + current;
+    }, 0);
+
     const totalReturn = currentValue - totalInvested;
     const performance =
       totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
@@ -104,25 +120,42 @@ const Portfolio = () => {
 
     const monthlyYield = (currentValue * averageDY) / 100 / 12;
 
-    // ✅ CORREÇÃO: Transformar investments em positions
-    const positions = activeInvestments.map((inv) => ({
-      ticker: inv.ticker,
-      name: inv.name || inv.ticker,
-      sector: inv.sector || "N/A",
-      totalShares: inv.shares || 0,
-      averagePrice: inv.average_price || 0,
-      currentPrice: inv.current_price || inv.average_price || 0,
-      totalInvested: inv.total_invested || 0,
-      currentValue: inv.current_value || inv.total_invested || 0,
-      dividendYield: inv.dividend_yield || 0,
-      pvp: inv.pvp || 0,
-      performance:
-        inv.total_invested > 0
-          ? (((inv.current_value || inv.total_invested) - inv.total_invested) /
-              inv.total_invested) *
-            100
-          : 0,
-    }));
+    // ✅ CORREÇÃO: Transformar investments em positions com mais detalhes
+    const positions = activeInvestments.map((inv) => {
+      const shares = inv.shares || 0;
+      const averagePrice = inv.average_price || 0;
+      const currentPrice = inv.current_price || inv.average_price || 0;
+      const totalInvested = inv.total_invested || shares * averagePrice;
+      const currentValue = inv.current_value || shares * currentPrice;
+      const performance =
+        totalInvested > 0
+          ? ((currentValue - totalInvested) / totalInvested) * 100
+          : 0;
+
+      console.log(`📊 ${inv.ticker} DEBUG:`, {
+        shares,
+        averagePrice,
+        currentPrice,
+        totalInvested,
+        currentValue,
+        performance,
+      });
+
+      return {
+        id: inv.id,
+        ticker: inv.ticker,
+        name: inv.name || inv.ticker,
+        sector: inv.sector || "N/A",
+        totalShares: shares,
+        averagePrice: averagePrice,
+        currentPrice: currentPrice,
+        totalInvested: totalInvested,
+        currentValue: currentValue,
+        dividendYield: inv.dividend_yield || 0,
+        pvp: inv.pvp || 0,
+        performance: performance,
+      };
+    });
 
     return {
       totalInvested,
@@ -140,13 +173,26 @@ const Portfolio = () => {
   const handleAddInvestment = async (e) => {
     e.preventDefault();
     try {
+      const shares = parseInt(investmentForm.shares);
+      const price = parseFloat(investmentForm.price);
+
+      console.log("📝 Adicionando investimento:", {
+        ticker: investmentForm.ticker.toUpperCase(),
+        name: investmentForm.name,
+        shares: shares,
+        average_price: price,
+        total_invested: shares * price,
+        sector: investmentForm.sector,
+      });
+
       await addInvestment({
         ticker: investmentForm.ticker.toUpperCase(),
         name: investmentForm.name,
-        shares: parseInt(investmentForm.shares),
-        price: parseFloat(investmentForm.price),
+        shares: shares,
+        price: price, // Este será mapeado para average_price
         sector: investmentForm.sector,
       });
+
       setInvestmentForm({
         ticker: "",
         name: "",
@@ -158,6 +204,60 @@ const Portfolio = () => {
     } catch (error) {
       console.error("Erro ao adicionar investimento:", error);
     }
+  };
+
+  // Editar investimento
+  const handleEditInvestment = async (e) => {
+    e.preventDefault();
+    try {
+      const shares = parseInt(investmentForm.shares);
+      const price = parseFloat(investmentForm.price);
+
+      await updateInvestment(showEditInvestment, {
+        ticker: investmentForm.ticker.toUpperCase(),
+        name: investmentForm.name,
+        shares: shares,
+        average_price: price,
+        total_invested: shares * price,
+        sector: investmentForm.sector,
+      });
+
+      setInvestmentForm({
+        ticker: "",
+        name: "",
+        shares: "",
+        price: "",
+        sector: "",
+      });
+      setShowEditInvestment(null);
+    } catch (error) {
+      console.error("Erro ao editar investimento:", error);
+    }
+  };
+
+  // Remover investimento
+  const handleRemoveInvestment = async (investmentId, ticker) => {
+    if (
+      window.confirm(`Tem certeza que deseja remover ${ticker} da carteira?`)
+    ) {
+      try {
+        await removeInvestment(investmentId);
+      } catch (error) {
+        console.error("Erro ao remover investimento:", error);
+      }
+    }
+  };
+
+  // Preparar edição
+  const prepareEdit = (position) => {
+    setInvestmentForm({
+      ticker: position.ticker,
+      name: position.name,
+      shares: position.totalShares.toString(),
+      price: position.averagePrice.toString(),
+      sector: position.sector,
+    });
+    setShowEditInvestment(position.id);
   };
 
   // Adicionar dividendo
@@ -303,7 +403,7 @@ const Portfolio = () => {
               {formatCurrency(stats.monthlyYield)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Média últimos 3 meses
+              Estimativa baseada no DY
             </p>
           </CardContent>
         </Card>
@@ -347,24 +447,60 @@ const Portfolio = () => {
                           <p className="text-xs text-muted-foreground">
                             {position.sector}
                           </p>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            <span>
+                              Preço médio:{" "}
+                              {formatCurrency(position.averagePrice)}
+                            </span>
+                            {position.currentPrice !==
+                              position.averagePrice && (
+                              <span className="ml-2">
+                                | Atual: {formatCurrency(position.currentPrice)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-medium">
-                          {formatCurrency(position.totalInvested)}
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <div className="font-medium">
+                            {formatCurrency(position.totalInvested)}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {position.totalShares} cotas
+                          </div>
+                          <div
+                            className={`text-xs ${
+                              position.performance >= 0
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {position.performance >= 0 ? "+" : ""}
+                            {formatPercentage(position.performance)}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {position.totalShares} cotas
-                        </div>
-                        <div
-                          className={`text-xs ${
-                            position.performance >= 0
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {position.performance >= 0 ? "+" : ""}
-                          {formatPercentage(position.performance)}
+                        <div className="flex flex-col gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => prepareEdit(position)}
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleRemoveInvestment(
+                                position.id,
+                                position.ticker
+                              )
+                            }
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -469,18 +605,31 @@ const Portfolio = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Modal Adicionar Investimento */}
-      {showAddInvestment && (
+      {/* Modal Adicionar/Editar Investimento */}
+      {(showAddInvestment || showEditInvestment) && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Adicionar Investimento</CardTitle>
+              <CardTitle>
+                {showEditInvestment
+                  ? "Editar Investimento"
+                  : "Adicionar Investimento"}
+              </CardTitle>
               <CardDescription>
-                Registre um novo FII na sua carteira
+                {showEditInvestment
+                  ? "Atualize os dados do investimento"
+                  : "Registre um novo FII na sua carteira"}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleAddInvestment} className="space-y-4">
+              <form
+                onSubmit={
+                  showEditInvestment
+                    ? handleEditInvestment
+                    : handleAddInvestment
+                }
+                className="space-y-4"
+              >
                 <div>
                   <Label htmlFor="ticker">Ticker</Label>
                   <Input
@@ -527,7 +676,7 @@ const Portfolio = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="price">Preço Médio</Label>
+                  <Label htmlFor="price">Preço Médio (por cota)</Label>
                   <Input
                     id="price"
                     type="number"
@@ -542,6 +691,15 @@ const Portfolio = () => {
                     placeholder="Ex: 10.50"
                     required
                   />
+                  {investmentForm.shares && investmentForm.price && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Total investido:{" "}
+                      {formatCurrency(
+                        parseInt(investmentForm.shares || 0) *
+                          parseFloat(investmentForm.price || 0)
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="sector">Setor</Label>
@@ -559,12 +717,22 @@ const Portfolio = () => {
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" className="flex-1">
-                    Adicionar
+                    {showEditInvestment ? "Atualizar" : "Adicionar"}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setShowAddInvestment(false)}
+                    onClick={() => {
+                      setShowAddInvestment(false);
+                      setShowEditInvestment(null);
+                      setInvestmentForm({
+                        ticker: "",
+                        name: "",
+                        shares: "",
+                        price: "",
+                        sector: "",
+                      });
+                    }}
                   >
                     Cancelar
                   </Button>

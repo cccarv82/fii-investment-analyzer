@@ -62,34 +62,50 @@ export const PortfolioProvider = ({ children }) => {
       setLoading(true);
       setError(null);
 
+      console.log("🔄 Carregando carteiras do Supabase...");
       const data = await supabaseStorage.getPortfolios();
-      setPortfolios(data);
+      console.log("📊 Carteiras carregadas:", data);
+
+      setPortfolios(data || []);
 
       // Definir carteira padrão se não houver uma selecionada
-      if (data.length > 0 && !currentPortfolio) {
+      if (data && data.length > 0 && !currentPortfolio) {
         setCurrentPortfolio(data[0]);
+        console.log("✅ Carteira padrão selecionada:", data[0]);
+      } else if (!data || data.length === 0) {
+        console.log("📝 Nenhuma carteira encontrada - estado vazio");
+        setCurrentPortfolio(null);
       }
     } catch (error) {
-      console.error("Erro ao carregar carteiras:", error);
+      console.error("❌ Erro ao carregar carteiras:", error);
       setError(error.message);
       showNotification("Erro ao carregar carteiras", "error");
+
+      // ✅ CORREÇÃO: Mesmo com erro, parar o loading
+      setPortfolios([]);
+      setCurrentPortfolio(null);
     } finally {
+      // ✅ CORREÇÃO: Sempre parar o loading
       setLoading(false);
+      console.log("✅ Loading finalizado");
     }
   };
 
   // 🆕 Criar nova carteira
   const createPortfolio = async (portfolioData) => {
     try {
+      console.log("🆕 Criando nova carteira:", portfolioData);
       const newPortfolio = await supabaseStorage.createPortfolio(portfolioData);
 
       setPortfolios((prev) => [newPortfolio, ...prev]);
       setCurrentPortfolio(newPortfolio);
 
       showNotification("Carteira criada com sucesso!", "success");
+      console.log("✅ Carteira criada:", newPortfolio);
+
       return newPortfolio;
     } catch (error) {
-      console.error("Erro ao criar carteira:", error);
+      console.error("❌ Erro ao criar carteira:", error);
       showNotification("Erro ao criar carteira", "error");
       throw error;
     }
@@ -145,11 +161,11 @@ export const PortfolioProvider = ({ children }) => {
     try {
       if (!currentPortfolio) {
         // Criar carteira padrão se não existir
+        console.log("🆕 Criando carteira padrão para primeiro investimento");
         const defaultPortfolio = await createPortfolio({
           name: "Minha Carteira",
           description: "Carteira principal",
         });
-
         await supabaseStorage.addInvestment(
           defaultPortfolio.id,
           investmentData
@@ -163,7 +179,6 @@ export const PortfolioProvider = ({ children }) => {
 
       // Recarregar carteiras para atualizar totais
       await loadPortfolios();
-
       showNotification(
         `${investmentData.ticker} adicionado à carteira!`,
         "success"
@@ -180,7 +195,6 @@ export const PortfolioProvider = ({ children }) => {
     try {
       await supabaseStorage.updateInvestment(investmentId, updates);
       await loadPortfolios(); // Recarregar para atualizar totais
-
       showNotification("Investimento atualizado!", "success");
     } catch (error) {
       console.error("Erro ao atualizar investimento:", error);
@@ -194,7 +208,6 @@ export const PortfolioProvider = ({ children }) => {
     try {
       await supabaseStorage.removeInvestment(investmentId);
       await loadPortfolios(); // Recarregar para atualizar totais
-
       showNotification("Investimento removido!", "success");
     } catch (error) {
       console.error("Erro ao remover investimento:", error);
@@ -323,94 +336,48 @@ export const PortfolioProvider = ({ children }) => {
     }));
   };
 
-  // 📊 Obter top investimentos
-  const getTopInvestments = (portfolio = currentPortfolio, limit = 5) => {
-    if (!portfolio || !portfolio.investments) return [];
+  // ✅ CORREÇÃO: Valores computados para o Dashboard
+  const stats = getPortfolioStats(currentPortfolio);
+  const positions = currentPortfolio?.investments || [];
+  const recentDividends = []; // TODO: Implementar dividendos recentes
 
-    return portfolio.investments
-      .filter((inv) => inv.is_active)
-      .sort(
-        (a, b) =>
-          (b.current_value || b.total_invested || 0) -
-          (a.current_value || a.total_invested || 0)
-      )
-      .slice(0, limit);
-  };
-
-  // 🔄 Atualizar preços (função para implementação futura)
-  const updatePrices = async () => {
-    try {
-      // TODO: Implementar atualização de preços via API
-      showNotification("Preços atualizados!", "success");
-    } catch (error) {
-      console.error("Erro ao atualizar preços:", error);
-      showNotification("Erro ao atualizar preços", "error");
-    }
-  };
-
-  // 📤 Exportar dados
-  const exportData = () => {
-    try {
-      const dataToExport = {
-        portfolios,
-        exportDate: new Date().toISOString(),
-        version: "1.0",
-      };
-
-      const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {
-        type: "application/json",
-      });
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `fii-portfolio-${
-        new Date().toISOString().split("T")[0]
-      }.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      showNotification("Dados exportados!", "success");
-    } catch (error) {
-      console.error("Erro ao exportar dados:", error);
-      showNotification("Erro ao exportar dados", "error");
-    }
-  };
-
+  // 🎯 Valores do contexto
   const value = {
-    // Estado
+    // Estados
     portfolios,
     currentPortfolio,
     loading,
     error,
 
-    // Ações de carteira
+    // ✅ CORREÇÃO: Valores para o Dashboard
+    totalInvested: stats.totalInvested,
+    currentValue: stats.currentValue,
+    totalDividends: 0, // TODO: Calcular dividendos totais
+    monthlyYield: stats.monthlyIncome,
+    performance: stats.returnPercentage,
+    positions,
+    recentDividends,
+
+    // Funções de carteira
+    loadPortfolios,
     createPortfolio,
     updatePortfolio,
     deletePortfolio,
     selectPortfolio,
-    loadPortfolios,
 
-    // Ações de investimento
+    // Funções de investimento
     addInvestment,
     updateInvestment,
     removeInvestment,
 
-    // Ações de dividendo
+    // Funções de dividendo
     addDividend,
     getDividends,
     getAllDividends,
 
-    // Estatísticas e análises
+    // Funções de cálculo
     getPortfolioStats,
     getSectorDistribution,
-    getTopInvestments,
-
-    // Utilitários
-    updatePrices,
-    exportData,
   };
 
   return (
@@ -423,10 +390,8 @@ export const PortfolioProvider = ({ children }) => {
 // 🎯 Hook para usar o contexto
 export const usePortfolio = () => {
   const context = useContext(PortfolioContext);
-  if (!context) {
-    throw new Error(
-      "usePortfolio deve ser usado dentro de um PortfolioProvider"
-    );
+  if (context === undefined) {
+    throw new Error("usePortfolio must be used within a PortfolioProvider");
   }
   return context;
 };

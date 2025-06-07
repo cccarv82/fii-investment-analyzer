@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 
 // 🔐 Contextos
-import { AuthProvider, useAuth, ProtectedRoute } from "./contexts/AuthContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AIProvider } from "./contexts/AIContext";
 import { PortfolioProvider } from "./contexts/PortfolioContext";
 
@@ -63,18 +63,23 @@ function AppContent() {
 
               {/* 💰 Investimentos */}
               <Route path="/investment" element={<Investment />} />
+              <Route path="/investir" element={<Investment />} />
 
               {/* 📈 Carteira */}
               <Route path="/portfolio" element={<Portfolio />} />
+              <Route path="/carteira" element={<Portfolio />} />
 
               {/* 🔍 Análises */}
               <Route path="/analysis" element={<Analysis />} />
+              <Route path="/analises" element={<Analysis />} />
 
               {/* 🎯 Simulações */}
               <Route path="/simulations" element={<Simulations />} />
+              <Route path="/simulacoes" element={<Simulations />} />
 
               {/* ⚙️ Configurações */}
               <Route path="/settings" element={<Settings />} />
+              <Route path="/configuracoes" element={<Settings />} />
 
               {/* 🚫 Rota não encontrada */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -1,10 +1,39 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabaseStorage } from "../lib/storage/supabaseStorage";
 import { useAuth } from "./AuthContext";
-import toast from "react-hot-toast";
 
 // 🎯 Contexto do Portfolio integrado com Supabase
 const PortfolioContext = createContext();
+
+// 🔔 Sistema de notificações simples (sem toast)
+const showNotification = (message, type = "info") => {
+  // Criar elemento de notificação
+  const notification = document.createElement("div");
+  notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg text-white max-w-sm transition-all duration-300 ${
+    type === "success"
+      ? "bg-green-600"
+      : type === "error"
+      ? "bg-red-600"
+      : type === "warning"
+      ? "bg-yellow-600"
+      : "bg-blue-600"
+  }`;
+  notification.textContent = message;
+
+  // Adicionar ao DOM
+  document.body.appendChild(notification);
+
+  // Remover após 4 segundos
+  setTimeout(() => {
+    notification.style.opacity = "0";
+    notification.style.transform = "translateY(-20px)";
+    setTimeout(() => {
+      if (document.body.contains(notification)) {
+        document.body.removeChild(notification);
+      }
+    }, 300);
+  }, 4000);
+};
 
 export const PortfolioProvider = ({ children }) => {
   const [portfolios, setPortfolios] = useState([]);
@@ -43,7 +72,7 @@ export const PortfolioProvider = ({ children }) => {
     } catch (error) {
       console.error("Erro ao carregar carteiras:", error);
       setError(error.message);
-      toast.error("Erro ao carregar carteiras");
+      showNotification("Erro ao carregar carteiras", "error");
     } finally {
       setLoading(false);
     }
@@ -57,11 +86,11 @@ export const PortfolioProvider = ({ children }) => {
       setPortfolios((prev) => [newPortfolio, ...prev]);
       setCurrentPortfolio(newPortfolio);
 
-      toast.success("Carteira criada com sucesso!");
+      showNotification("Carteira criada com sucesso!", "success");
       return newPortfolio;
     } catch (error) {
       console.error("Erro ao criar carteira:", error);
-      toast.error("Erro ao criar carteira");
+      showNotification("Erro ao criar carteira", "error");
       throw error;
     }
   };
@@ -82,11 +111,11 @@ export const PortfolioProvider = ({ children }) => {
         setCurrentPortfolio(updatedPortfolio);
       }
 
-      toast.success("Carteira atualizada!");
+      showNotification("Carteira atualizada!", "success");
       return updatedPortfolio;
     } catch (error) {
       console.error("Erro ao atualizar carteira:", error);
-      toast.error("Erro ao atualizar carteira");
+      showNotification("Erro ao atualizar carteira", "error");
       throw error;
     }
   };
@@ -103,10 +132,10 @@ export const PortfolioProvider = ({ children }) => {
         setCurrentPortfolio(remaining.length > 0 ? remaining[0] : null);
       }
 
-      toast.success("Carteira removida!");
+      showNotification("Carteira removida!", "success");
     } catch (error) {
       console.error("Erro ao deletar carteira:", error);
-      toast.error("Erro ao deletar carteira");
+      showNotification("Erro ao deletar carteira", "error");
       throw error;
     }
   };
@@ -135,10 +164,13 @@ export const PortfolioProvider = ({ children }) => {
       // Recarregar carteiras para atualizar totais
       await loadPortfolios();
 
-      toast.success(`${investmentData.ticker} adicionado à carteira!`);
+      showNotification(
+        `${investmentData.ticker} adicionado à carteira!`,
+        "success"
+      );
     } catch (error) {
       console.error("Erro ao adicionar investimento:", error);
-      toast.error("Erro ao adicionar investimento");
+      showNotification("Erro ao adicionar investimento", "error");
       throw error;
     }
   };
@@ -149,10 +181,10 @@ export const PortfolioProvider = ({ children }) => {
       await supabaseStorage.updateInvestment(investmentId, updates);
       await loadPortfolios(); // Recarregar para atualizar totais
 
-      toast.success("Investimento atualizado!");
+      showNotification("Investimento atualizado!", "success");
     } catch (error) {
       console.error("Erro ao atualizar investimento:", error);
-      toast.error("Erro ao atualizar investimento");
+      showNotification("Erro ao atualizar investimento", "error");
       throw error;
     }
   };
@@ -163,10 +195,10 @@ export const PortfolioProvider = ({ children }) => {
       await supabaseStorage.removeInvestment(investmentId);
       await loadPortfolios(); // Recarregar para atualizar totais
 
-      toast.success("Investimento removido!");
+      showNotification("Investimento removido!", "success");
     } catch (error) {
       console.error("Erro ao remover investimento:", error);
-      toast.error("Erro ao remover investimento");
+      showNotification("Erro ao remover investimento", "error");
       throw error;
     }
   };
@@ -175,10 +207,10 @@ export const PortfolioProvider = ({ children }) => {
   const addDividend = async (investmentId, dividendData) => {
     try {
       await supabaseStorage.addDividend(investmentId, dividendData);
-      toast.success("Dividendo registrado!");
+      showNotification("Dividendo registrado!", "success");
     } catch (error) {
       console.error("Erro ao adicionar dividendo:", error);
-      toast.error("Erro ao registrar dividendo");
+      showNotification("Erro ao registrar dividendo", "error");
       throw error;
     }
   };
@@ -309,10 +341,10 @@ export const PortfolioProvider = ({ children }) => {
   const updatePrices = async () => {
     try {
       // TODO: Implementar atualização de preços via API
-      toast.success("Preços atualizados!");
+      showNotification("Preços atualizados!", "success");
     } catch (error) {
       console.error("Erro ao atualizar preços:", error);
-      toast.error("Erro ao atualizar preços");
+      showNotification("Erro ao atualizar preços", "error");
     }
   };
 
@@ -340,10 +372,10 @@ export const PortfolioProvider = ({ children }) => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      toast.success("Dados exportados!");
+      showNotification("Dados exportados!", "success");
     } catch (error) {
       console.error("Erro ao exportar dados:", error);
-      toast.error("Erro ao exportar dados");
+      showNotification("Erro ao exportar dados", "error");
     }
   };
 

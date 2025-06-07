@@ -371,6 +371,9 @@ export const AIProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // ✅ CORREÇÃO CRÍTICA: Estado para armazenar BRAPI token
+  const [brapiToken, setBrapiToken] = useState(null);
+
   // 🔧 Carregar configurações do Supabase
   useEffect(() => {
     if (user) {
@@ -393,6 +396,12 @@ export const AIProvider = ({ children }) => {
       if (data?.openai_api_key) {
         openAIManager.setApiKey(data.openai_api_key);
         setIsConfigured(true);
+      }
+
+      // ✅ CORREÇÃO CRÍTICA: Carregar BRAPI token
+      if (data?.brapi_token) {
+        setBrapiToken(data.brapi_token);
+        console.log("✅ BRAPI token carregado do Supabase:", data.brapi_token);
       }
     } catch (error) {
       console.error("Erro ao carregar configurações:", error);
@@ -457,11 +466,10 @@ export const AIProvider = ({ children }) => {
     }
   };
 
-  // 🔧 Obter BRAPI token do Supabase
+  // ✅ CORREÇÃO CRÍTICA: Obter BRAPI token do estado
   const getBrapiToken = () => {
-    // Implementação para obter token do Supabase
-    // Por enquanto, retorna null para usar fallback
-    return null;
+    console.log("🔍 getBrapiToken chamado, token atual:", brapiToken);
+    return brapiToken;
   };
 
   const getApiKey = () => {
@@ -547,7 +555,7 @@ export const AIProvider = ({ children }) => {
     setApiKey,
     removeApiKey,
     getApiKey,
-    getBrapiToken,
+    getBrapiToken, // ✅ CORREÇÃO CRÍTICA: Função corrigida
     generateInvestmentSuggestions,
     analyzeFII,
     analyzePortfolio,

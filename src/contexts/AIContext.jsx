@@ -1,19 +1,235 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { fundamentalAnalysisAI } from '../lib/ai/analysis.js';
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 // Contexto da IA
 const AIContext = createContext();
 
+// Classe para gerenciar IA da OpenAI
+class OpenAIManager {
+  constructor() {
+    this.apiKey = null;
+    this.baseURL = "https://api.openai.com/v1";
+  }
+
+  setApiKey(key) {
+    this.apiKey = key;
+    if (key) {
+      localStorage.setItem("fii_analyzer_openai_key", key);
+    } else {
+      localStorage.removeItem("fii_analyzer_openai_key");
+    }
+  }
+
+  getApiKey() {
+    if (!this.apiKey) {
+      this.apiKey = localStorage.getItem("fii_analyzer_openai_key");
+    }
+    return this.apiKey;
+  }
+
+  async makeRequest(messages, temperature = 0.7) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
+      throw new Error("API key da OpenAI não configurada");
+    }
+
+    const response = await fetch(`${this.baseURL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4",
+        messages: messages,
+        temperature: temperature,
+        max_tokens: 2000,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(
+        `OpenAI API Error: ${error.error?.message || "Erro desconhecido"}`
+      );
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+  }
+
+  async analyzeFII(fiiData, userProfile) {
+    const messages = [
+      {
+        role: "system",
+        content: `Você é um especialista em análise fundamentalista de FIIs (Fundos de Investimento Imobiliário) do Brasil. 
+        Analise o FII fornecido considerando o perfil do investidor e retorne uma análise detalhada em JSON.`,
+      },
+      {
+        role: "user",
+        content: `Analise este FII:
+        
+        Dados do FII:
+        - Ticker: ${fiiData.ticker}
+        - Nome: ${fiiData.name}
+        - Preço: R$ ${fiiData.price}
+        - Dividend Yield: ${fiiData.dividendYield}%
+        - P/VP: ${fiiData.pvp}
+        - Setor: ${fiiData.sector}
+        
+        Perfil do Investidor:
+        - Perfil de Risco: ${userProfile.riskProfile}
+        - Objetivo: ${userProfile.investmentGoal}
+        - Prazo: ${userProfile.timeHorizon}
+        
+        Retorne um JSON com:
+        {
+          "score": número de 0 a 10,
+          "recommendation": "COMPRAR" | "MANTER" | "VENDER",
+          "reasoning": "explicação detalhada",
+          "strengths": ["ponto forte 1", "ponto forte 2"],
+          "weaknesses": ["ponto fraco 1", "ponto fraco 2"],
+          "targetPrice": preço alvo em reais,
+          "riskLevel": "BAIXO" | "MÉDIO" | "ALTO"
+        }`,
+      },
+    ];
+
+    const response = await this.makeRequest(messages);
+    return JSON.parse(response);
+  }
+
+  async analyzePortfolio(portfolio, userProfile) {
+    const messages = [
+      {
+        role: "system",
+        content: `Você é um especialista em análise de carteiras de FIIs. Analise a carteira fornecida e retorne insights em JSON.`,
+      },
+      {
+        role: "user",
+        content: `Analise esta carteira de FIIs:
+        
+        Carteira:
+        ${portfolio
+          .map(
+            (p) =>
+              `- ${p.ticker}: ${p.shares} cotas, R$ ${p.totalInvested} investido`
+          )
+          .join("\n")}
+        
+        Perfil do Investidor:
+        - Perfil de Risco: ${userProfile.riskProfile}
+        - Objetivo: ${userProfile.investmentGoal}
+        
+        Retorne um JSON com:
+        {
+          "overallScore": número de 0 a 10,
+          "diversificationScore": número de 0 a 10,
+          "riskScore": número de 0 a 10,
+          "recommendations": ["recomendação 1", "recomendação 2"],
+          "strengths": ["força 1", "força 2"],
+          "weaknesses": ["fraqueza 1", "fraqueza 2"],
+          "suggestedActions": ["ação 1", "ação 2"]
+        }`,
+      },
+    ];
+
+    const response = await this.makeRequest(messages);
+    return JSON.parse(response);
+  }
+
+  async generateInvestmentSuggestions(params) {
+    const { amount, riskProfile, investmentGoal, timeHorizon, availableFiis } =
+      params;
+
+    const messages = [
+      {
+        role: "system",
+        content: `Você é um especialista em investimentos em FIIs. Analise os FIIs disponíveis e crie uma carteira otimizada baseada no perfil do investidor. Retorne APENAS um JSON válido.`,
+      },
+      {
+        role: "user",
+        content: `Crie uma carteira de FIIs para:
+        
+        Perfil do Investidor:
+        - Valor para investir: R$ ${amount}
+        - Perfil de Risco: ${riskProfile}
+        - Objetivo: ${investmentGoal}
+        - Prazo: ${timeHorizon}
+        
+        FIIs Disponíveis:
+        ${availableFiis
+          .map(
+            (fii) =>
+              `- ${fii.ticker} (${fii.name}): R$ ${fii.price}, DY: ${fii.dividendYield}%, P/VP: ${fii.pvp}, Setor: ${fii.sector}`
+          )
+          .join("\n")}
+        
+        Retorne um JSON com:
+        {
+          "recommendations": [
+            {
+              "ticker": "CÓDIGO",
+              "reasoning": "motivo da escolha",
+              "score": número de 0 a 10,
+              "strengths": ["força 1", "força 2"],
+              "weaknesses": ["fraqueza 1"],
+              "allocation": percentual de 0 a 100
+            }
+          ],
+          "marketAnalysis": "análise do mercado atual de FIIs"
+        }`,
+      },
+    ];
+
+    const response = await this.makeRequest(messages);
+    return JSON.parse(response);
+  }
+
+  async getMarketAnalysis() {
+    const messages = [
+      {
+        role: "system",
+        content: `Você é um especialista em mercado de FIIs brasileiro. Forneça uma análise atual do mercado em JSON.`,
+      },
+      {
+        role: "user",
+        content: `Forneça uma análise atual do mercado de FIIs brasileiro.
+        
+        Retorne um JSON com:
+        {
+          "marketSentiment": "POSITIVO" | "NEUTRO" | "NEGATIVO",
+          "keyTrends": ["tendência 1", "tendência 2"],
+          "sectorOutlook": {
+            "logistica": "análise do setor",
+            "shoppings": "análise do setor",
+            "corporativo": "análise do setor",
+            "residencial": "análise do setor"
+          },
+          "opportunities": ["oportunidade 1", "oportunidade 2"],
+          "risks": ["risco 1", "risco 2"],
+          "outlook": "perspectiva geral"
+        }`,
+      },
+    ];
+
+    const response = await this.makeRequest(messages);
+    return JSON.parse(response);
+  }
+}
+
+// Instância global
+const openAIManager = new OpenAIManager();
+
 // Provider
 export const AIProvider = ({ children }) => {
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState("");
   const [isConfigured, setIsConfigured] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Verificar se API key está configurada
   useEffect(() => {
-    const savedKey = fundamentalAnalysisAI.getApiKey();
+    const savedKey = openAIManager.getApiKey();
     if (savedKey) {
       setApiKey(savedKey);
       setIsConfigured(true);
@@ -23,22 +239,21 @@ export const AIProvider = ({ children }) => {
   // Configurar API key
   const configureApiKey = (key) => {
     try {
-      fundamentalAnalysisAI.setApiKey(key);
+      openAIManager.setApiKey(key);
       setApiKey(key);
-      setIsConfigured(true);
+      setIsConfigured(!!key);
       setError(null);
       return true;
     } catch (error) {
-      setError('Erro ao configurar API key');
+      setError("Erro ao configurar API key");
       return false;
     }
   };
 
   // Remover API key
   const removeApiKey = () => {
-    localStorage.removeItem('fii_analyzer_openai_key');
-    fundamentalAnalysisAI.setApiKey(null);
-    setApiKey('');
+    openAIManager.setApiKey(null);
+    setApiKey("");
     setIsConfigured(false);
     setError(null);
   };
@@ -46,14 +261,14 @@ export const AIProvider = ({ children }) => {
   // Analisar FII
   const analyzeFII = async (fiiData, userProfile) => {
     if (!isConfigured) {
-      throw new Error('API key da OpenAI não configurada');
+      throw new Error("API key da OpenAI não configurada");
     }
 
     setLoading(true);
     setError(null);
 
     try {
-      const analysis = await fundamentalAnalysisAI.analyzeFII(fiiData, userProfile);
+      const analysis = await openAIManager.analyzeFII(fiiData, userProfile);
       setLoading(false);
       return analysis;
     } catch (error) {
@@ -66,14 +281,17 @@ export const AIProvider = ({ children }) => {
   // Analisar carteira
   const analyzePortfolio = async (portfolio, userProfile) => {
     if (!isConfigured) {
-      throw new Error('API key da OpenAI não configurada');
+      throw new Error("API key da OpenAI não configurada");
     }
 
     setLoading(true);
     setError(null);
 
     try {
-      const analysis = await fundamentalAnalysisAI.analyzePortfolio(portfolio, userProfile);
+      const analysis = await openAIManager.analyzePortfolio(
+        portfolio,
+        userProfile
+      );
       setLoading(false);
       return analysis;
     } catch (error) {
@@ -84,51 +302,44 @@ export const AIProvider = ({ children }) => {
   };
 
   // Gerar sugestões de investimento
-  const generateSuggestions = async (userProfile, availableFIIs) => {
+  const generateInvestmentSuggestions = async (params) => {
     if (!isConfigured) {
-      // Retornar sugestões mock se IA não estiver configurada
-      return generateMockSuggestions(userProfile);
+      throw new Error("API key da OpenAI não configurada");
     }
 
     setLoading(true);
     setError(null);
 
     try {
-      const suggestions = await fundamentalAnalysisAI.generateInvestmentSuggestions(
-        userProfile, 
-        availableFIIs
+      const suggestions = await openAIManager.generateInvestmentSuggestions(
+        params
       );
       setLoading(false);
       return suggestions;
     } catch (error) {
       setLoading(false);
       setError(error.message);
-      
-      // Fallback para sugestões mock em caso de erro
-      console.warn('Erro na IA, usando sugestões mock:', error);
-      return generateMockSuggestions(userProfile);
+      throw error;
     }
   };
 
   // Análise de mercado
   const getMarketAnalysis = async () => {
     if (!isConfigured) {
-      return generateMockMarketAnalysis();
+      throw new Error("API key da OpenAI não configurada");
     }
 
     setLoading(true);
     setError(null);
 
     try {
-      const analysis = await fundamentalAnalysisAI.getMarketAnalysis();
+      const analysis = await openAIManager.getMarketAnalysis();
       setLoading(false);
       return analysis;
     } catch (error) {
       setLoading(false);
       setError(error.message);
-      
-      // Fallback para análise mock
-      return generateMockMarketAnalysis();
+      throw error;
     }
   };
 
@@ -146,126 +357,19 @@ export const AIProvider = ({ children }) => {
     removeApiKey,
     analyzeFII,
     analyzePortfolio,
-    generateSuggestions,
+    generateInvestmentSuggestions,
     getMarketAnalysis,
-    clearError
+    clearError,
   };
 
-  return (
-    <AIContext.Provider value={value}>
-      {children}
-    </AIContext.Provider>
-  );
+  return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
 };
 
 // Hook para usar o contexto
 export const useAI = () => {
   const context = useContext(AIContext);
   if (!context) {
-    throw new Error('useAI deve ser usado dentro de AIProvider');
+    throw new Error("useAI deve ser usado dentro de AIProvider");
   }
   return context;
 };
-
-// Função para gerar sugestões mock (fallback)
-const generateMockSuggestions = (userProfile) => {
-  const mockFIIs = [
-    {
-      ticker: 'HGLG11',
-      name: 'CSHG Logística FII',
-      price: 172.50,
-      dividendYield: 7.8,
-      pvp: 0.95,
-      sector: 'Logística',
-      percentage: 25,
-      recommendedAmount: userProfile.amount * 0.25,
-      shares: Math.floor((userProfile.amount * 0.25) / 172.50),
-      investmentAmount: Math.floor((userProfile.amount * 0.25) / 172.50) * 172.50,
-      reasoning: 'Excelente fundamento com baixo P/VP e alto dividend yield. Setor de logística em crescimento.',
-      strengths: ['Alto dividend yield de 7.8%', 'Negociado abaixo do valor patrimonial', 'Setor em expansão'],
-      weaknesses: ['Dependência do e-commerce'],
-      score: 8.5
-    },
-    {
-      ticker: 'XPLG11',
-      name: 'XP Log FII',
-      price: 105.20,
-      dividendYield: 8.2,
-      pvp: 0.88,
-      sector: 'Logística',
-      percentage: 20,
-      recommendedAmount: userProfile.amount * 0.20,
-      shares: Math.floor((userProfile.amount * 0.20) / 105.20),
-      investmentAmount: Math.floor((userProfile.amount * 0.20) / 105.20) * 105.20,
-      reasoning: 'Forte posicionamento no setor logístico com boa gestão e ativos de qualidade.',
-      strengths: ['Excelente dividend yield', 'Gestão reconhecida', 'Ativos bem localizados'],
-      weaknesses: ['Concentração geográfica'],
-      score: 8.2
-    },
-    {
-      ticker: 'VISC11',
-      name: 'Vinci Shopping Centers FII',
-      price: 112.30,
-      dividendYield: 7.5,
-      pvp: 0.92,
-      sector: 'Shoppings',
-      percentage: 15,
-      recommendedAmount: userProfile.amount * 0.15,
-      shares: Math.floor((userProfile.amount * 0.15) / 112.30),
-      investmentAmount: Math.floor((userProfile.amount * 0.15) / 112.30) * 112.30,
-      reasoning: 'Shopping centers de qualidade com boa ocupação e gestão eficiente.',
-      strengths: ['Shoppings bem localizados', 'Boa taxa de ocupação', 'Gestão experiente'],
-      weaknesses: ['Setor com desafios estruturais', 'Impacto do e-commerce'],
-      score: 7.8
-    }
-  ];
-
-  const totalInvestment = mockFIIs.reduce((sum, fii) => sum + fii.investmentAmount, 0);
-  const expectedYield = mockFIIs.reduce((sum, fii) => 
-    sum + (fii.investmentAmount * fii.dividendYield / 100), 0
-  );
-
-  return {
-    allocation: mockFIIs,
-    summary: {
-      totalAmount: userProfile.amount,
-      totalInvestment: totalInvestment,
-      remainingAmount: userProfile.amount - totalInvestment,
-      expectedYield: expectedYield,
-      expectedYieldPercentage: (expectedYield / totalInvestment) * 100,
-      diversificationScore: 75,
-      aiPowered: false
-    },
-    timestamp: new Date().toISOString()
-  };
-};
-
-// Função para gerar análise de mercado mock
-const generateMockMarketAnalysis = () => {
-  return {
-    marketSentiment: 'NEUTRO',
-    keyTrends: [
-      'Crescimento do setor logístico impulsionado pelo e-commerce',
-      'Recuperação gradual do setor de shoppings',
-      'Busca por yield em cenário de juros altos'
-    ],
-    sectorOutlook: {
-      logistica: 'Positivo - Crescimento sustentado com expansão do e-commerce',
-      shoppings: 'Neutro - Recuperação lenta mas consistente',
-      corporativo: 'Positivo - Demanda por escritórios de qualidade',
-      residencial: 'Neutro - Mercado estável com oportunidades pontuais'
-    },
-    opportunities: [
-      'FIIs de logística com ativos bem localizados',
-      'Fundos com desconto ao valor patrimonial',
-      'Oportunidades em recebíveis imobiliários'
-    ],
-    risks: [
-      'Volatilidade das taxas de juros',
-      'Mudanças no comportamento do consumidor',
-      'Concentração setorial ou geográfica'
-    ],
-    outlook: 'Mercado de FIIs mantém atratividade com dividend yields competitivos. Diversificação setorial recomendada.'
-  };
-};
-

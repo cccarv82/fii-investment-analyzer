@@ -297,6 +297,47 @@ const CacheControl = ({ onRefresh, isLoading = false }) => {
             <HardDrive className="h-4 w-4" />
             Atualizar Stats
           </Button>
+
+          <Button
+            onClick={async () => {
+              console.log('🧪 TESTE INDEXEDDB INICIADO');
+              try {
+                // Testar salvamento
+                const testData = { 
+                  TESTE11: { price: 10.50, dividendYield: 8.5 },
+                  TESTE22: { price: 15.30, dividendYield: 7.2 }
+                };
+                
+                console.log('💾 Salvando dados de teste...');
+                await indexedDBCache.saveQuotes(testData);
+                console.log('✅ Dados salvos com sucesso');
+                
+                // Testar carregamento
+                console.log('📤 Carregando dados de teste...');
+                const loadedData = await indexedDBCache.loadQuotes();
+                console.log('📊 Dados carregados:', loadedData);
+                
+                if (loadedData && Object.keys(loadedData).length > 0) {
+                  console.log('✅ TESTE INDEXEDDB: SUCESSO!');
+                  alert('✅ IndexedDB funcionando corretamente!');
+                } else {
+                  console.log('❌ TESTE INDEXEDDB: FALHOU - Dados não carregados');
+                  alert('❌ IndexedDB não está funcionando');
+                }
+                
+                await loadCacheStats();
+              } catch (error) {
+                console.error('❌ TESTE INDEXEDDB: ERRO', error);
+                alert(`❌ Erro no IndexedDB: ${error.message}`);
+              }
+            }}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Database className="h-4 w-4" />
+            Testar IndexedDB
+          </Button>
         </div>
 
         {/* Última Ação */}

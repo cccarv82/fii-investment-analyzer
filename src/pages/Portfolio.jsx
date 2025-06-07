@@ -13,6 +13,7 @@ import {
   FileText,
   Edit,
   X,
+  RefreshCw,
 } from "lucide-react";
 import {
   Card,
@@ -48,6 +49,7 @@ const Portfolio = () => {
     updateInvestment,
     removeInvestment,
     addDividend,
+    refreshCurrentPortfolioPrices, // 🚀 NOVA FUNÇÃO
     exportData,
     importData,
     clearAllData,
@@ -57,6 +59,7 @@ const Portfolio = () => {
   const [showAddInvestment, setShowAddInvestment] = useState(false);
   const [showAddDividend, setShowAddDividend] = useState(false);
   const [showEditInvestment, setShowEditInvestment] = useState(null);
+  const [refreshingPrices, setRefreshingPrices] = useState(false);
   const [investmentForm, setInvestmentForm] = useState({
     ticker: "",
     name: "",
@@ -92,7 +95,7 @@ const Portfolio = () => {
       const invested =
         inv.total_invested || inv.shares * inv.average_price || 0;
       console.log(
-        `💰 ${inv.ticker}: ${inv.shares} cotas × R$ ${inv.average_price} = R$ ${invested}`
+        `💰 ${inv.ticker}: ${inv.shares} cotas × R$ ${inv.average_price} (médio) = R$ ${invested} investido`
       );
       return sum + invested;
     }, 0);
@@ -100,9 +103,12 @@ const Portfolio = () => {
     const currentValue = activeInvestments.reduce((sum, inv) => {
       const current =
         inv.current_value ||
+        inv.shares * inv.current_price ||
         inv.total_invested ||
-        inv.shares * inv.average_price ||
         0;
+      console.log(
+        `📈 ${inv.ticker}: ${inv.shares} cotas × R$ ${inv.current_price} (atual) = R$ ${current} atual`
+      );
       return sum + current;
     }, 0);
 
@@ -132,13 +138,14 @@ const Portfolio = () => {
           ? ((currentValue - totalInvested) / totalInvested) * 100
           : 0;
 
-      console.log(`📊 ${inv.ticker} DEBUG:`, {
+      console.log(`📊 ${inv.ticker} POSITION DEBUG:`, {
         shares,
         averagePrice,
         currentPrice,
         totalInvested,
         currentValue,
         performance,
+        isRealPrice: currentPrice !== averagePrice,
       });
 
       return {
@@ -154,6 +161,7 @@ const Portfolio = () => {
         dividendYield: inv.dividend_yield || 0,
         pvp: inv.pvp || 0,
         performance: performance,
+        isRealPrice: currentPrice !== averagePrice, // 🚀 Indicador se é preço real
       };
     });
 
@@ -168,6 +176,18 @@ const Portfolio = () => {
   };
 
   const stats = getPortfolioStats();
+
+  // 🚀 ATUALIZAR PREÇOS REAIS
+  const handleRefreshPrices = async () => {
+    setRefreshingPrices(true);
+    try {
+      await refreshCurrentPortfolioPrices();
+    } catch (error) {
+      console.error("Erro ao atualizar preços:", error);
+    } finally {
+      setRefreshingPrices(false);
+    }
+  };
 
   // Adicionar investimento
   const handleAddInvestment = async (e) => {
@@ -319,6 +339,18 @@ const Portfolio = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRefreshPrices}
+            disabled={refreshingPrices}
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${
+                refreshingPrices ? "animate-spin" : ""
+              }`}
+            />
+            {refreshingPrices ? "Atualizando..." : "Atualizar Preços"}
+          </Button>
           <Button variant="outline" onClick={() => setShowAddDividend(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Dividendo
@@ -423,8 +455,24 @@ const Portfolio = () => {
           {stats.positions.length > 0 ? (
             <Card>
               <CardHeader>
-                <CardTitle>Posições na Carteira</CardTitle>
-                <CardDescription>Seus investimentos em FIIs</CardDescription>
+                <CardTitle className="flex items-center justify-between">
+                  Posições na Carteira
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefreshPrices}
+                    disabled={refreshingPrices}
+                  >
+                    <RefreshCw
+                      className={`h-3 w-3 ${
+                        refreshingPrices ? "animate-spin" : ""
+                      }`}
+                    />
+                  </Button>
+                </CardTitle>
+                <CardDescription>
+                  Seus investimentos em FIIs com preços atualizados da BRAPI
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -452,10 +500,17 @@ const Portfolio = () => {
                               Preço médio:{" "}
                               {formatCurrency(position.averagePrice)}
                             </span>
-                            {position.currentPrice !==
-                              position.averagePrice && (
-                              <span className="ml-2">
-                                | Atual: {formatCurrency(position.currentPrice)}
+                            <span className="ml-2">
+                              | Atual: {formatCurrency(position.currentPrice)}
+                            </span>
+                            {position.isRealPrice && (
+                              <span className="ml-2 text-green-600">
+                                📡 BRAPI
+                              </span>
+                            )}
+                            {!position.isRealPrice && (
+                              <span className="ml-2 text-yellow-600">
+                                ⚠️ Sem atualização
                               </span>
                             )}
                           </div>
@@ -464,10 +519,13 @@ const Portfolio = () => {
                       <div className="flex items-center gap-2">
                         <div className="text-right">
                           <div className="font-medium">
-                            {formatCurrency(position.totalInvested)}
+                            {formatCurrency(position.currentValue)}
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {position.totalShares} cotas
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Investido: {formatCurrency(position.totalInvested)}
                           </div>
                           <div
                             className={`text-xs ${
@@ -700,6 +758,9 @@ const Portfolio = () => {
                       )}
                     </p>
                   )}
+                  <p className="text-xs text-yellow-600 mt-1">
+                    💡 O preço atual será buscado automaticamente da BRAPI
+                  </p>
                 </div>
                 <div>
                   <Label htmlFor="sector">Setor</Label>

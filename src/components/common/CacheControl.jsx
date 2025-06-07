@@ -338,6 +338,55 @@ const CacheControl = ({ onRefresh, isLoading = false }) => {
             <Database className="h-4 w-4" />
             Testar IndexedDB
           </Button>
+
+          <Button
+            onClick={async () => {
+              console.log('🧹 LIMPEZA TOTAL INICIADA');
+              try {
+                // 1. Limpar IndexedDB
+                console.log('🗑️ Limpando IndexedDB...');
+                await clearQuotesCache();
+                
+                // 2. Limpar localStorage
+                console.log('🗑️ Limpando localStorage...');
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                  const key = localStorage.key(i);
+                  if (key && (key.includes('fii') || key.includes('cache') || key.includes('quotes'))) {
+                    keysToRemove.push(key);
+                  }
+                }
+                keysToRemove.forEach(key => localStorage.removeItem(key));
+                console.log(`🗑️ ${keysToRemove.length} chaves removidas do localStorage`);
+                
+                // 3. Limpar sessionStorage
+                console.log('🗑️ Limpando sessionStorage...');
+                sessionStorage.clear();
+                
+                // 4. Forçar reload da página
+                console.log('🔄 Recarregando página...');
+                setLastAction({
+                  type: 'clear',
+                  message: 'Cache TOTAL limpo! Recarregando página...',
+                  timestamp: new Date()
+                });
+                
+                setTimeout(() => {
+                  window.location.reload();
+                }, 2000);
+                
+              } catch (error) {
+                console.error('❌ Erro na limpeza total:', error);
+                alert(`❌ Erro na limpeza: ${error.message}`);
+              }
+            }}
+            variant="destructive"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Trash2 className="h-4 w-4" />
+            Limpar TUDO + Reload
+          </Button>
         </div>
 
         {/* Última Ação */}

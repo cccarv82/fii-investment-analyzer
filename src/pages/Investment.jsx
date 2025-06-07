@@ -371,18 +371,18 @@ const Investment = () => {
         }
       }
       
-      // VALIDAÇÃO OBRIGATÓRIA: Máximo 15% de valorização
+      // VALIDAÇÃO OBRIGATÓRIA: Máximo 12% de valorização (alinhado com prompts revolucionários)
       if (targetPrice && price > 0) {
-        const maxRealisticTarget = price * 1.15; // Máximo 15% de valorização
+        const maxRealisticTarget = price * 1.12; // Máximo 12% de valorização (mais conservador)
         const currentIncrease = ((targetPrice - price) / price) * 100;
         
         console.log(`   Aumento atual: ${currentIncrease.toFixed(1)}%`);
-        console.log(`   Máximo permitido: 15%`);
+        console.log(`   Máximo permitido: 12%`);
         console.log(`   Target máximo: R$ ${maxRealisticTarget.toFixed(2)}`);
         
         if (targetPrice > maxRealisticTarget) {
           console.warn(
-            `🚨 [${suggestion.ticker}] TargetPrice IRREAL detectado: R$ ${targetPrice.toFixed(2)} (${currentIncrease.toFixed(1)}% acima do atual R$ ${price.toFixed(2)}). FORÇANDO correção para máximo 15%...`
+            `🚨 [${suggestion.ticker}] TargetPrice IRREAL detectado: R$ ${targetPrice.toFixed(2)} (${currentIncrease.toFixed(1)}% acima do atual R$ ${price.toFixed(2)}). FORÇANDO correção para máximo 12%...`
           );
           targetPrice = maxRealisticTarget;
         }
@@ -391,10 +391,10 @@ const Investment = () => {
           `✅ [${suggestion.ticker}] TargetPrice FINAL: R$ ${targetPrice.toFixed(2)} (${((targetPrice - price) / price * 100).toFixed(1)}% acima do atual R$ ${price.toFixed(2)})`
         );
       } else if (price > 0) {
-        // Se não tem targetPrice válido, calcular um conservador (10% de valorização)
-        targetPrice = price * 1.10;
+        // Se não tem targetPrice válido, calcular um conservador (8% de valorização)
+        targetPrice = price * 1.08;
         console.log(
-          `🔧 [${suggestion.ticker}] TargetPrice calculado conservadoramente: R$ ${targetPrice.toFixed(2)} (10% acima do atual)`
+          `🔧 [${suggestion.ticker}] TargetPrice calculado conservadoramente: R$ ${targetPrice.toFixed(2)} (8% acima do atual)`
         );
       } else {
         // Preço inválido
@@ -409,10 +409,65 @@ const Investment = () => {
       console.log(`   TargetPrice: R$ ${targetPrice.toFixed(2)}`);
       console.log(`   Valorização: ${price > 0 ? ((targetPrice - price) / price * 100).toFixed(1) : 0}%`);
 
+      // ✅ NOVA CORREÇÃO: Validar e corrigir análise fundamentalista (reasoning)
+      let correctedReasoning = suggestion.reasoning || '';
+      const currentDY = fullFIIData?.dividendYield || suggestion.dividendYield || 0;
+      const selicRate = 14.75;
+      
+      console.log(`🔍 [${suggestion.ticker}] Validando análise fundamentalista:`);
+      console.log(`   DY atual: ${currentDY.toFixed(2)}%`);
+      console.log(`   Selic atual: ${selicRate}%`);
+      console.log(`   DY vs Selic: ${currentDY > selicRate ? 'SUPERIOR' : currentDY < selicRate ? 'INFERIOR' : 'IGUAL'}`);
+      
+      // Detectar e corrigir análises incorretas sobre DY vs Selic
+      if (correctedReasoning) {
+        // Padrões incorretos a serem corrigidos
+        const incorrectPatterns = [
+          /DY superior à Selic de [\d,.]+ quando/gi,
+          /DY de [\d,.]+ supera a Selic/gi,
+          /DY acima da Selic de [\d,.]+/gi,
+          /DY superior à Selic/gi
+        ];
+        
+        // Verificar se há padrões incorretos E se o DY é realmente inferior à Selic
+        const hasIncorrectPattern = incorrectPatterns.some(pattern => pattern.test(correctedReasoning));
+        
+        if (hasIncorrectPattern && currentDY < selicRate) {
+          console.warn(`🚨 [${suggestion.ticker}] ANÁLISE INCORRETA detectada! DY ${currentDY.toFixed(2)}% não é superior à Selic ${selicRate}%`);
+          
+          // Corrigir o texto da análise
+          if (currentDY < selicRate) {
+            // DY inferior à Selic
+            correctedReasoning = correctedReasoning.replace(
+              /DY superior à Selic de [\d,.]+%[^.]*\./gi,
+              `DY de ${currentDY.toFixed(1)}% está abaixo da Selic de ${selicRate}%, mas é compensado pelo potencial de valorização e qualidade dos ativos.`
+            );
+            correctedReasoning = correctedReasoning.replace(
+              /DY de [\d,.]+ supera a Selic[^.]*\./gi,
+              `DY de ${currentDY.toFixed(1)}% está abaixo da Selic de ${selicRate}%, porém oferece potencial de valorização.`
+            );
+            correctedReasoning = correctedReasoning.replace(
+              /DY acima da Selic de [\d,.]+%/gi,
+              `DY de ${currentDY.toFixed(1)}% abaixo da Selic de ${selicRate}%`
+            );
+            correctedReasoning = correctedReasoning.replace(
+              /DY superior à Selic/gi,
+              `DY abaixo da Selic`
+            );
+          }
+          
+          console.log(`✅ [${suggestion.ticker}] Análise fundamentalista CORRIGIDA`);
+        } else if (currentDY >= selicRate) {
+          // DY realmente superior - garantir que está correto
+          console.log(`✅ [${suggestion.ticker}] Análise fundamentalista CORRETA - DY realmente superior à Selic`);
+        }
+      }
+
       return {
         ...suggestion,
         price: price, // ✅ Agora usa preço real da BRAPI
         targetPrice: targetPrice, // ✅ Agora validado e realista
+        reasoning: correctedReasoning, // ✅ NOVO: Análise fundamentalista corrigida
         percentage: percentage,
         recommendedAmount: recommendedAmount,
         shares: shares,
@@ -604,6 +659,17 @@ const Investment = () => {
                 onAddToPortfolio={handleAddToPortfolio}
               />
 
+              {/* Controle de Cache - TAMBÉM NA ABA RESULTADOS */}
+              <CacheControl 
+                onRefresh={(forceRefresh) => {
+                  // Usar os últimos parâmetros de análise se disponíveis
+                  if (suggestions?.formData) {
+                    handleSubmitInvestment(suggestions.formData, forceRefresh);
+                  }
+                }}
+                isLoading={isLoading}
+              />
+
               {/* Estratégia de Portfólio */}
               {suggestions.portfolioStrategy && (
                 <Card>
@@ -672,17 +738,28 @@ const Investment = () => {
               </div>
             </>
           ) : (
-            <Card>
-              <CardContent className="flex items-center justify-center py-8">
-                <div className="text-center">
-                  <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    Nenhuma análise realizada ainda. Vá para "Nova Análise" para
-                    começar.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <>
+              <Card>
+                <CardContent className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">
+                      Nenhuma análise realizada ainda. Vá para "Nova Análise" para
+                      começar.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Controle de Cache - TAMBÉM QUANDO NÃO HÁ RESULTADOS */}
+              <CacheControl 
+                onRefresh={(forceRefresh) => {
+                  // Ir para aba de análise se não há dados
+                  setActiveTab("analysis");
+                }}
+                isLoading={isLoading}
+              />
+            </>
           )}
         </TabsContent>
       </Tabs>

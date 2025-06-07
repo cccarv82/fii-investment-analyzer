@@ -335,10 +335,10 @@ const SuggestionCard = ({
               {strengths.map((strength, index) => (
                 <li
                   key={index}
-                  className="text-sm text-muted-foreground flex items-start gap-2"
+                  className="text-sm text-muted-foreground flex items-center gap-2"
                 >
-                  <span className="text-green-500 mt-1">✓</span>
-                  {strength}
+                  <span className="text-green-500 flex-shrink-0">✓</span>
+                  <span>{strength}</span>
                 </li>
               ))}
             </ul>
@@ -355,10 +355,10 @@ const SuggestionCard = ({
               {weaknesses.map((weakness, index) => (
                 <li
                   key={index}
-                  className="text-sm text-muted-foreground flex items-start gap-2"
+                  className="text-sm text-muted-foreground flex items-center gap-2"
                 >
-                  <span className="text-orange-500 mt-1">⚠</span>
-                  {weakness}
+                  <span className="text-orange-500 flex-shrink-0">⚠</span>
+                  <span>{weakness}</span>
                 </li>
               ))}
             </ul>
@@ -373,10 +373,10 @@ const SuggestionCard = ({
               {risks.map((risk, index) => (
                 <li
                   key={index}
-                  className="text-sm text-muted-foreground flex items-start gap-2"
+                  className="text-sm text-muted-foreground flex items-center gap-2"
                 >
-                  <span className="text-red-500 mt-1">⚠</span>
-                  {risk}
+                  <span className="text-red-500 flex-shrink-0">⚠</span>
+                  <span>{risk}</span>
                 </li>
               ))}
             </ul>

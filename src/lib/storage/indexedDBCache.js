@@ -29,6 +29,23 @@ class IndexedDBCacheService {
   async init() {
     try {
       console.log('🔄 Inicializando IndexedDB Cache...');
+      
+      // 🔍 VERIFICAÇÃO DETALHADA DE DISPONIBILIDADE
+      console.log('🔍 Verificando disponibilidade do IndexedDB...');
+      console.log('   window.indexedDB:', !!window.indexedDB);
+      console.log('   navigator.userAgent:', navigator.userAgent);
+      console.log('   window.location.protocol:', window.location.protocol);
+      
+      if (!window.indexedDB) {
+        console.error('❌ IndexedDB não está disponível neste navegador');
+        console.log('🔧 Possíveis causas:');
+        console.log('   - Navegador muito antigo');
+        console.log('   - Modo privado/incógnito');
+        console.log('   - Configurações de segurança');
+        throw new Error('IndexedDB não suportado');
+      }
+      
+      console.log('✅ IndexedDB disponível, tentando abrir banco...');
       this.db = await this.openDatabase();
       this.isInitialized = true;
       console.log('✅ IndexedDB Cache inicializado com sucesso');
@@ -37,6 +54,7 @@ class IndexedDBCacheService {
       
       // 🔄 NOVO: Migração automática de dados antigos
       try {
+        console.log('🔄 Iniciando migração automática...');
         await autoMigrateCache();
         console.log('✅ Migração automática concluída');
       } catch (migrationError) {
@@ -60,9 +78,29 @@ class IndexedDBCacheService {
         stack: error.stack
       });
       
+      // 🔍 DIAGNÓSTICO DETALHADO
+      console.log('🔍 DIAGNÓSTICO INDEXEDDB:');
+      console.log('   Navegador:', navigator.userAgent);
+      console.log('   Protocolo:', window.location.protocol);
+      console.log('   IndexedDB disponível:', !!window.indexedDB);
+      console.log('   Modo privado detectado:', this.isPrivateMode());
+      
       // Fallback para localStorage se IndexedDB falhar
       this.fallbackToLocalStorage = true;
       console.warn('⚠️ Usando fallback para localStorage');
+    }
+  }
+
+  // 🔍 Detectar modo privado
+  isPrivateMode() {
+    try {
+      // Teste simples para detectar modo privado
+      const test = 'test';
+      localStorage.setItem(test, test);
+      localStorage.removeItem(test);
+      return false;
+    } catch (e) {
+      return true;
     }
   }
 
@@ -182,8 +220,8 @@ class IndexedDBCacheService {
       return false;
     }
 
-    // Durante horário de mercado, cache válido por no máximo 1h
-    if (this.isMarketHours() && age > 60 * 60 * 1000) {
+    // Durante horário de mercado, cache válido por no máximo 30min (consistente com background sync)
+    if (this.isMarketHours() && age > 30 * 60 * 1000) {
       return false;
     }
 

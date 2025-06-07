@@ -86,7 +86,7 @@ JSON:
   "reasoning": "análise 200-300 palavras",
   "strengths": ["força1", "força2", "força3"],
   "weaknesses": ["fraco1", "fraco2"],
-  "targetPrice": "preço-alvo 12m (máximo 15% acima do atual)",
+  "targetPrice": 12.50,
   "riskLevel": "BAIXO|MÉDIO|ALTO",
   "suitability": 0-10
 }`,
@@ -208,6 +208,9 @@ Seu objetivo é montar ou reestruturar a melhor carteira de FIIs para um investi
 - Baseado em análise fundamentalista rigorosa
 - Considerar: DY sustentável + melhoria P/VP + cenário macro
 - NUNCA sugerir altas superiores a 15%
+- EXEMPLO: Se preço atual é R$ 10,00, targetPrice máximo é R$ 11,50
+- VALIDAÇÃO OBRIGATÓRIA: targetPrice ≤ preço_atual × 1.15
+- FORMATO: targetPrice deve ser um número decimal (ex: 12.50, não "R$ 12,50")
 
 ## COMPARAÇÕES SELIC CORRETAS:
 - Se DY < Selic: "DY abaixo da Selic de 10.75%, compensado por potencial de valorização"
@@ -265,7 +268,7 @@ JSON (4 FIIs obrigatório):
       "reasoning": "análise 150-200 palavras Buffett+Dalio+Lynch+macro",
       "strengths": ["força1", "força2", "força3"],
       "risks": ["risco1", "risco2"],
-      "targetPrice": "preço-alvo 12m (máximo 15% acima do atual)",
+      "targetPrice": 12.50,
       "timeHorizon": "prazo"
     }
   ],

@@ -31,6 +31,7 @@ import { usePortfolio } from "../contexts/PortfolioContext";
 import { getAllFIIData, getBestFIIsForAI } from "../lib/api/fii_data_manager";
 import InvestmentForm from "../components/investment/InvestmentForm";
 import { SuggestionsList } from "../components/investment/SuggestionCard";
+import CacheControl from "../components/common/CacheControl";
 
 const Investment = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -146,7 +147,7 @@ const Investment = () => {
   };
 
   // 🎯 Função principal ULTIMATE para obter sugestões com IA SUPREMA
-  const handleSubmitInvestment = async (formData) => {
+  const handleSubmitInvestment = async (formData, forceRefresh = false) => {
     setIsLoading(true);
     setError(null);
     setLoadingProgress(0);
@@ -176,7 +177,7 @@ const Investment = () => {
         !!brapiToken
       );
 
-      const allFIIs = await getAllFIIData(brapiToken);
+      const allFIIs = await getAllFIIData(brapiToken, forceRefresh);
       console.log(`📊 ${allFIIs.length} FIIs carregados para análise`);
       debugFIIData(allFIIs, "DADOS ORIGINAIS - 300 FIIs");
 
@@ -193,7 +194,7 @@ const Investment = () => {
         "Selecionando os 100 melhores FIIs com algoritmo inteligente..."
       );
 
-      const bestFIIs = await getBestFIIsForAI(brapiToken);
+      const bestFIIs = await getBestFIIsForAI(brapiToken, forceRefresh);
       console.log(`🏆 ${bestFIIs.length} melhores FIIs selecionados para IA`);
       debugFIIData(bestFIIs, "100 MELHORES PARA IA");
 
@@ -318,6 +319,9 @@ const Investment = () => {
     totalAmount,
     allFIIs
   ) => {
+    console.log("🔧 [validateAndCalculateAllocations] Iniciando validação...");
+    console.log("📊 Sugestões recebidas da IA:", aiAnalysis.suggestions);
+    
     const suggestions = aiAnalysis.suggestions || [];
 
     // Garantir que temos pelo menos 1 sugestão
@@ -340,6 +344,43 @@ const Investment = () => {
       const recommendedAmount = (totalAmount * percentage) / 100;
       const shares = price > 0 ? Math.floor(recommendedAmount / price) : 0;
 
+      // ✅ NOVA CORREÇÃO: Validar e corrigir targetPrice irreal
+      let targetPrice = suggestion.targetPrice;
+      
+      // Verificar se targetPrice é um número válido
+      if (typeof targetPrice === 'string') {
+        // Extrair número da string se necessário
+        const match = targetPrice.match(/[\d,]+\.?\d*/);
+        if (match) {
+          targetPrice = parseFloat(match[0].replace(',', ''));
+        } else {
+          targetPrice = null;
+        }
+      }
+      
+      // Validar se targetPrice é realista (máximo 15% acima do preço atual)
+      if (targetPrice && price > 0) {
+        const maxRealisticTarget = price * 1.15; // Máximo 15% de valorização
+        const currentIncrease = ((targetPrice - price) / price) * 100;
+        
+        if (targetPrice > maxRealisticTarget) {
+          console.warn(
+            `🚨 [${suggestion.ticker}] TargetPrice irreal detectado: R$ ${targetPrice.toFixed(2)} (${currentIncrease.toFixed(1)}% acima do atual R$ ${price.toFixed(2)}). Corrigindo para máximo 15%...`
+          );
+          targetPrice = maxRealisticTarget;
+        }
+        
+        console.log(
+          `✅ [${suggestion.ticker}] TargetPrice validado: R$ ${targetPrice.toFixed(2)} (${((targetPrice - price) / price * 100).toFixed(1)}% acima do atual R$ ${price.toFixed(2)})`
+        );
+      } else if (price > 0) {
+        // Se não tem targetPrice válido, calcular um conservador (10% de valorização)
+        targetPrice = price * 1.10;
+        console.log(
+          `🔧 [${suggestion.ticker}] TargetPrice calculado conservadoramente: R$ ${targetPrice.toFixed(2)} (10% acima do atual)`
+        );
+      }
+
       console.log(
         `🔧 [${suggestion.ticker}] Preço corrigido: R$ ${price.toFixed(
           2
@@ -349,6 +390,7 @@ const Investment = () => {
       return {
         ...suggestion,
         price: price, // ✅ Agora usa preço real da BRAPI
+        targetPrice: targetPrice, // ✅ Agora validado e realista
         percentage: percentage,
         recommendedAmount: recommendedAmount,
         shares: shares,
@@ -453,6 +495,17 @@ const Investment = () => {
               />
             </CardContent>
           </Card>
+
+          {/* Controle de Cache */}
+          <CacheControl 
+            onRefresh={(forceRefresh) => {
+              // Usar os últimos parâmetros de análise se disponíveis
+              if (suggestions?.formData) {
+                handleSubmitInvestment(suggestions.formData, forceRefresh);
+              }
+            }}
+            isLoading={isLoading}
+          />
 
           {/* Erro */}
           {error && (

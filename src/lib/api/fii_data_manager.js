@@ -2,6 +2,8 @@
 // Sistema otimizado para carregar máximo de FIIs com filtros inteligentes
 
 import { cache, CacheKeys, withCache } from "../storage/cache.js";
+import { quotesCache } from "../storage/quotesCache.js";
+import { indexedDBCache } from "../storage/indexedDBCache.js";
 
 // 🔑 Configuração OTIMIZADA da API BRAPI
 const BRAPI_CONFIG = {
@@ -1258,7 +1260,7 @@ class FIIDataManager {
   }
 
   // 🎯 Método principal para obter dados com token do Supabase
-  async getAllFIIData(brapiToken = null) {
+  async getAllFIIData(brapiToken = null, forceRefresh = false) {
     try {
       console.log(
         "🚀 [FIIDataManager] Iniciando carregamento ULTIMATE de 300 FIIs..."
@@ -1274,6 +1276,31 @@ class FIIDataManager {
         );
       }
 
+      // 🚀 NOVO: Verificar cache IndexedDB primeiro
+      if (!forceRefresh) {
+        console.log("📦 Verificando cache IndexedDB...");
+        const cachedQuotes = await indexedDBCache.loadQuotes();
+        
+        if (cachedQuotes) {
+          const cacheStats = await indexedDBCache.getCacheStats();
+          console.log(`✅ Cache IndexedDB encontrado: ${cacheStats.count} cotações (${cacheStats.ageMinutes}min atrás)`);
+          
+          // Converter dados do cache para formato esperado
+          const cachedFIIs = Object.entries(cachedQuotes).map(([ticker, data]) => ({
+            ticker,
+            ...data,
+            source: 'indexeddb_cache'
+          }));
+          
+          console.log(`🚀 Retornando ${cachedFIIs.length} FIIs do cache IndexedDB`);
+          return cachedFIIs;
+        } else {
+          console.log("📭 Cache IndexedDB não encontrado ou expirado, buscando dados frescos...");
+        }
+      } else {
+        console.log("🔄 Refresh forçado, ignorando cache IndexedDB...");
+      }
+
       // 1. Obter lista expandida de FIIs (meta: 300)
       const allFIIs = await this.getAllAvailableFIIs();
       console.log(`📋 ${allFIIs.length} FIIs encontrados`);
@@ -1281,6 +1308,30 @@ class FIIDataManager {
       // 2. Obter dados detalhados
       const fiiData = await this.getFIIData(allFIIs);
       console.log(`✅ ${fiiData.length} FIIs processados com sucesso`);
+
+      // 🚀 NOVO: Salvar no cache IndexedDB
+      if (fiiData.length > 0) {
+        console.log("💾 Salvando cotações no cache IndexedDB...");
+        const quotesToCache = {};
+        
+        fiiData.forEach(fii => {
+          quotesToCache[fii.ticker] = {
+            name: fii.name,
+            price: fii.price,
+            dividendYield: fii.dividendYield,
+            pvp: fii.pvp,
+            sector: fii.sector,
+            marketCap: fii.marketCap,
+            volume: fii.volume,
+            liquidity: fii.liquidity,
+            qualityScore: fii.qualityScore,
+            lastUpdate: new Date().toISOString()
+          };
+        });
+        
+        await indexedDBCache.saveQuotes(quotesToCache);
+        console.log(`✅ ${Object.keys(quotesToCache).length} cotações salvas no cache IndexedDB`);
+      }
 
       return fiiData;
     } catch (error) {
@@ -1290,8 +1341,8 @@ class FIIDataManager {
   }
 
   // 🎯 Método para obter os melhores FIIs para IA
-  async getBestFIIsForAI(brapiToken = null) {
-    const allFIIs = await this.getAllFIIData(brapiToken);
+  async getBestFIIsForAI(brapiToken = null, forceRefresh = false) {
+    const allFIIs = await this.getAllFIIData(brapiToken, forceRefresh);
     return this.selectBestFIIsForAI(allFIIs);
   }
 }
@@ -1300,13 +1351,13 @@ class FIIDataManager {
 const fiiDataManager = new FIIDataManager();
 
 // 🎯 Função principal para uso externo
-export const getAllFIIData = async (brapiToken = null) => {
-  return await fiiDataManager.getAllFIIData(brapiToken);
+export const getAllFIIData = async (brapiToken = null, forceRefresh = false) => {
+  return await fiiDataManager.getAllFIIData(brapiToken, forceRefresh);
 };
 
 // 🎯 Função para obter os 100 melhores FIIs para IA
-export const getBestFIIsForAI = async (brapiToken = null) => {
-  return await fiiDataManager.getBestFIIsForAI(brapiToken);
+export const getBestFIIsForAI = async (brapiToken = null, forceRefresh = false) => {
+  return await fiiDataManager.getBestFIIsForAI(brapiToken, forceRefresh);
 };
 
 // 🎯 Função para configurar token

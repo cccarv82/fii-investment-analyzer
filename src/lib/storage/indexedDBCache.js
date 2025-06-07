@@ -28,13 +28,17 @@ class IndexedDBCacheService {
   // 🔧 Inicializar IndexedDB
   async init() {
     try {
+      console.log('🔄 Inicializando IndexedDB Cache...');
       this.db = await this.openDatabase();
       this.isInitialized = true;
       console.log('✅ IndexedDB Cache inicializado com sucesso');
+      console.log(`📂 Banco: ${this.dbName} v${this.dbVersion}`);
+      console.log(`📦 Store: ${this.storeName}`);
       
       // 🔄 NOVO: Migração automática de dados antigos
       try {
         await autoMigrateCache();
+        console.log('✅ Migração automática concluída');
       } catch (migrationError) {
         console.warn('⚠️ Erro na migração automática:', migrationError);
         // Não falhar a inicialização por causa da migração
@@ -42,34 +46,70 @@ class IndexedDBCacheService {
       
       // Iniciar background sync
       this.startBackgroundSync();
+      console.log('🔄 Background sync iniciado');
       
       // Limpeza automática na inicialização
       await this.cleanOldCaches();
+      console.log('🧹 Limpeza automática concluída');
       
     } catch (error) {
       console.error('❌ Erro ao inicializar IndexedDB:', error);
+      console.error('📋 Detalhes do erro:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      
       // Fallback para localStorage se IndexedDB falhar
       this.fallbackToLocalStorage = true;
+      console.warn('⚠️ Usando fallback para localStorage');
     }
   }
 
   // 📂 Abrir banco de dados IndexedDB
   openDatabase() {
     return new Promise((resolve, reject) => {
+      console.log(`🔓 Abrindo banco IndexedDB: ${this.dbName} v${this.dbVersion}`);
+      
+      // Verificar se IndexedDB está disponível
+      if (!window.indexedDB) {
+        console.error('❌ IndexedDB não está disponível neste navegador');
+        reject(new Error('IndexedDB não suportado'));
+        return;
+      }
+      
       const request = indexedDB.open(this.dbName, this.dbVersion);
       
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => {
+        console.error('❌ Erro ao abrir IndexedDB:', request.error);
+        reject(request.error);
+      };
+      
+      request.onsuccess = () => {
+        console.log('✅ IndexedDB aberto com sucesso');
+        const db = request.result;
+        console.log(`📊 Object stores disponíveis: ${Array.from(db.objectStoreNames).join(', ')}`);
+        resolve(db);
+      };
       
       request.onupgradeneeded = (event) => {
+        console.log('🔄 Atualizando estrutura do IndexedDB...');
         const db = event.target.result;
         
         // Criar object store se não existir
         if (!db.objectStoreNames.contains(this.storeName)) {
+          console.log(`📦 Criando object store: ${this.storeName}`);
           const store = db.createObjectStore(this.storeName, { keyPath: 'id' });
           store.createIndex('timestamp', 'timestamp', { unique: false });
           store.createIndex('type', 'type', { unique: false });
+          console.log('✅ Object store criado com sucesso');
+        } else {
+          console.log(`📦 Object store já existe: ${this.storeName}`);
         }
+      };
+      
+      request.onblocked = () => {
+        console.warn('⚠️ IndexedDB bloqueado - feche outras abas do aplicativo');
       };
     });
   }

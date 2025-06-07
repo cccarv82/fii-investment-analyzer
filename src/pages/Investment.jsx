@@ -333,6 +333,10 @@ const Investment = () => {
     const equalPercentage = 100 / suggestions.length;
 
     const validatedSuggestions = suggestions.map((suggestion, index) => {
+      console.log(`\n🔍 [${suggestion.ticker}] VALIDAÇÃO INICIADA:`);
+      console.log(`   IA Price: ${suggestion.price}`);
+      console.log(`   IA TargetPrice: ${suggestion.targetPrice}`);
+      
       // Buscar dados completos do FII
       const fullFIIData = allFIIs.find(
         (fii) => fii.ticker === suggestion.ticker
@@ -344,34 +348,47 @@ const Investment = () => {
       const recommendedAmount = (totalAmount * percentage) / 100;
       const shares = price > 0 ? Math.floor(recommendedAmount / price) : 0;
 
-      // ✅ NOVA CORREÇÃO: Validar e corrigir targetPrice irreal
+      console.log(`   BRAPI Price: ${fullFIIData?.price}`);
+      console.log(`   Final Price: ${price}`);
+
+      // ✅ VALIDAÇÃO SUPER AGRESSIVA: Corrigir targetPrice irreal
       let targetPrice = suggestion.targetPrice;
       
-      // Verificar se targetPrice é um número válido
+      // Log do valor original
+      console.log(`   TargetPrice Original: ${targetPrice} (tipo: ${typeof targetPrice})`);
+      
+      // Converter string para número se necessário
       if (typeof targetPrice === 'string') {
-        // Extrair número da string se necessário
-        const match = targetPrice.match(/[\d,]+\.?\d*/);
+        // Remover símbolos de moeda e espaços
+        const cleanString = targetPrice.replace(/[R$\s,]/g, '').replace(',', '.');
+        const match = cleanString.match(/[\d.]+/);
         if (match) {
-          targetPrice = parseFloat(match[0].replace(',', ''));
+          targetPrice = parseFloat(match[0]);
+          console.log(`   TargetPrice convertido de string: ${targetPrice}`);
         } else {
           targetPrice = null;
+          console.log(`   TargetPrice string inválida, definindo como null`);
         }
       }
       
-      // Validar se targetPrice é realista (máximo 15% acima do preço atual)
+      // VALIDAÇÃO OBRIGATÓRIA: Máximo 15% de valorização
       if (targetPrice && price > 0) {
         const maxRealisticTarget = price * 1.15; // Máximo 15% de valorização
         const currentIncrease = ((targetPrice - price) / price) * 100;
         
+        console.log(`   Aumento atual: ${currentIncrease.toFixed(1)}%`);
+        console.log(`   Máximo permitido: 15%`);
+        console.log(`   Target máximo: R$ ${maxRealisticTarget.toFixed(2)}`);
+        
         if (targetPrice > maxRealisticTarget) {
           console.warn(
-            `🚨 [${suggestion.ticker}] TargetPrice irreal detectado: R$ ${targetPrice.toFixed(2)} (${currentIncrease.toFixed(1)}% acima do atual R$ ${price.toFixed(2)}). Corrigindo para máximo 15%...`
+            `🚨 [${suggestion.ticker}] TargetPrice IRREAL detectado: R$ ${targetPrice.toFixed(2)} (${currentIncrease.toFixed(1)}% acima do atual R$ ${price.toFixed(2)}). FORÇANDO correção para máximo 15%...`
           );
           targetPrice = maxRealisticTarget;
         }
         
         console.log(
-          `✅ [${suggestion.ticker}] TargetPrice validado: R$ ${targetPrice.toFixed(2)} (${((targetPrice - price) / price * 100).toFixed(1)}% acima do atual R$ ${price.toFixed(2)})`
+          `✅ [${suggestion.ticker}] TargetPrice FINAL: R$ ${targetPrice.toFixed(2)} (${((targetPrice - price) / price * 100).toFixed(1)}% acima do atual R$ ${price.toFixed(2)})`
         );
       } else if (price > 0) {
         // Se não tem targetPrice válido, calcular um conservador (10% de valorização)
@@ -379,13 +396,18 @@ const Investment = () => {
         console.log(
           `🔧 [${suggestion.ticker}] TargetPrice calculado conservadoramente: R$ ${targetPrice.toFixed(2)} (10% acima do atual)`
         );
+      } else {
+        // Preço inválido
+        targetPrice = 0;
+        console.error(`❌ [${suggestion.ticker}] Preço inválido: ${price}`);
       }
 
       console.log(
-        `🔧 [${suggestion.ticker}] Preço corrigido: R$ ${price.toFixed(
-          2
-        )} (BRAPI: ${fullFIIData?.price}, IA: ${suggestion.price})`
+        `🔧 [${suggestion.ticker}] RESUMO FINAL:`
       );
+      console.log(`   Preço: R$ ${price.toFixed(2)} (BRAPI: ${fullFIIData?.price}, IA: ${suggestion.price})`);
+      console.log(`   TargetPrice: R$ ${targetPrice.toFixed(2)}`);
+      console.log(`   Valorização: ${price > 0 ? ((targetPrice - price) / price * 100).toFixed(1) : 0}%`);
 
       return {
         ...suggestion,
@@ -401,6 +423,11 @@ const Investment = () => {
         sector: fullFIIData?.sector || suggestion.sector || "N/A",
         name: fullFIIData?.name || suggestion.name || suggestion.ticker,
       };
+    });
+
+    console.log("\n✅ VALIDAÇÃO COMPLETA - RESUMO:");
+    validatedSuggestions.forEach(s => {
+      console.log(`${s.ticker}: R$ ${s.price?.toFixed(2)} → R$ ${s.targetPrice?.toFixed(2)} (${s.price > 0 ? ((s.targetPrice - s.price) / s.price * 100).toFixed(1) : 0}%)`);
     });
 
     return {

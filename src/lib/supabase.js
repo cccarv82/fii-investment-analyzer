@@ -6,37 +6,12 @@ const supabaseUrl = "https://nnridtfztfnepzwrubzn.supabase.co";
 const supabaseAnonKey =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ucmlkdGZ6dGZuZXB6d3J1YnpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkyNjQ0NjgsImV4cCI6MjA2NDg0MDQ2OH0.JeKmRXY23UrIfKUdaGedFgyXffjp315yYC0ee4X_v9M";
 
-// 🚀 Criar cliente Supabase
+// 🚀 Criar cliente Supabase - VERSÃO ORIGINAL FUNCIONANDO
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    // ✅ OTIMIZAÇÕES PARA REDUZIR RELOAD ALT+TAB:
-    storage: {
-      ...window.localStorage,
-      // Cache de sessão por 5 minutos
-      getItem: (key) => {
-        const item = window.localStorage.getItem(key);
-        if (key.includes("supabase.auth.token") && item) {
-          try {
-            const parsed = JSON.parse(item);
-            // Se token válido por mais de 5 min, não revalide
-            if (
-              parsed.expires_at &&
-              parsed.expires_at * 1000 - Date.now() > 300000
-            ) {
-              return item;
-            }
-          } catch (e) {
-            // Se erro no parse, retorna item normal
-          }
-        }
-        return item;
-      },
-    },
-    storageKey: "supabase.auth.token",
-    flowType: "pkce",
   },
   realtime: {
     params: {
@@ -86,6 +61,7 @@ export const supabaseUtils = {
         .from("profiles")
         .select("count")
         .limit(1);
+
       return !error;
     } catch (error) {
       console.error("Erro ao verificar conexão Supabase:", error);
@@ -99,10 +75,12 @@ export const supabaseUtils = {
       data: { user },
       error,
     } = await supabase.auth.getUser();
+
     if (error) {
       console.error("Erro ao obter usuário:", error);
       return null;
     }
+
     return user;
   },
 
@@ -110,6 +88,7 @@ export const supabaseUtils = {
   async isUserAuthorized() {
     const user = await this.getCurrentUser();
     if (!user) return false;
+
     return isAuthorizedUser(user.email);
   },
 

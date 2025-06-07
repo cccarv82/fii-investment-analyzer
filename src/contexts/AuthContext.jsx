@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 import { supabase, authConfig, isAuthorizedUser } from "../lib/supabase";
 
 // 🔐 Contexto de Autenticação
@@ -11,26 +17,69 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
+  // 🔧 Criar perfil do usuário se não existir (memoizado)
+  const createUserProfileIfNeeded = useCallback(async (user) => {
+    try {
+      console.log("🔍 Verificando perfil para:", user.email);
+
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+
+      if (!existingProfile) {
+        console.log("🆕 Criando novo perfil...");
+        const { error } = await supabase.from("profiles").insert({
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name || user.email.split("@")[0],
+          created_at: new Date().toISOString(),
+        });
+
+        if (error) {
+          console.error("❌ Erro ao criar perfil:", error);
+        } else {
+          console.log("✅ Perfil criado com sucesso");
+        }
+      } else {
+        console.log("✅ Perfil já existe");
+      }
+    } catch (error) {
+      console.error("❌ Erro ao verificar/criar perfil:", error);
+    }
+  }, []);
+
   useEffect(() => {
+    let mounted = true;
+
     // 🔍 Verificar sessão inicial
     const checkInitialSession = async () => {
       try {
+        console.log("🔍 Verificando sessão inicial...");
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession();
 
+        if (!mounted) return; // ✅ Evitar atualizações se componente foi desmontado
+
         if (error) {
-          console.error("Erro ao verificar sessão:", error);
+          console.error("❌ Erro ao verificar sessão:", error);
         } else if (session) {
+          console.log("✅ Sessão encontrada:", session.user.email);
           setSession(session);
           setUser(session.user);
           setIsAuthorized(isAuthorizedUser(session.user.email));
+        } else {
+          console.log("ℹ️ Nenhuma sessão encontrada");
         }
       } catch (error) {
-        console.error("Erro ao verificar sessão inicial:", error);
+        console.error("❌ Erro ao verificar sessão inicial:", error);
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -40,7 +89,9 @@ export const AuthProvider = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.email);
+      if (!mounted) return; // ✅ Evitar atualizações se componente foi desmontado
+
+      console.log("🔄 Auth state changed:", event, session?.user?.email);
 
       setSession(session);
       setUser(session?.user || null);
@@ -49,44 +100,23 @@ export const AuthProvider = ({ children }) => {
       );
       setLoading(false);
 
-      // 🎯 Criar perfil automaticamente se necessário
+      // 🎯 Criar perfil automaticamente se necessário (apenas no SIGNED_IN)
       if (event === "SIGNED_IN" && session?.user) {
-        await createUserProfileIfNeeded(session.user);
+        // ✅ CORREÇÃO: Usar setTimeout para evitar loop
+        setTimeout(() => {
+          if (mounted) {
+            createUserProfileIfNeeded(session.user);
+          }
+        }, 100);
       }
     });
 
+    // 🧹 Cleanup
     return () => {
+      mounted = false;
       subscription?.unsubscribe();
     };
-  }, []);
-
-  // 🔧 Criar perfil do usuário se não existir
-  const createUserProfileIfNeeded = async (user) => {
-    try {
-      const { data: existingProfile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", user.id)
-        .single();
-
-      if (!existingProfile) {
-        const { error } = await supabase.from("profiles").insert({
-          id: user.id,
-          email: user.email,
-          full_name: user.user_metadata?.full_name || user.email.split("@")[0],
-          created_at: new Date().toISOString(),
-        });
-
-        if (error) {
-          console.error("Erro ao criar perfil:", error);
-        } else {
-          console.log("✅ Perfil criado com sucesso");
-        }
-      }
-    } catch (error) {
-      console.error("Erro ao verificar/criar perfil:", error);
-    }
-  };
+  }, []); // ✅ CORREÇÃO: Dependências vazias para evitar loop
 
   // 🔐 Fazer login com email (Magic Link)
   const signInWithEmail = async (email) => {
@@ -149,17 +179,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   // 🔍 Verificar se usuário está autenticado
-  const isAuthenticated = () => {
+  const isAuthenticated = useCallback(() => {
     return !!user && !!session;
-  };
+  }, [user, session]);
 
   // 🛡️ Verificar se usuário está autorizado
-  const isUserAuthorized = () => {
+  const isUserAuthorized = useCallback(() => {
     return isAuthenticated() && isAuthorized;
-  };
+  }, [isAuthenticated, isAuthorized]);
 
   // 📊 Obter dados do usuário
-  const getUserData = () => {
+  const getUserData = useCallback(() => {
     return {
       id: user?.id,
       email: user?.email,
@@ -167,7 +197,7 @@ export const AuthProvider = ({ children }) => {
       avatar: user?.user_metadata?.avatar_url,
       createdAt: user?.created_at,
     };
-  };
+  }, [user]);
 
   const value = {
     user,

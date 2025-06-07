@@ -1,9 +1,11 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
+  useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 // 🔐 Contextos
@@ -23,6 +25,92 @@ import Settings from "./pages/Settings";
 
 // 🎨 Estilos
 import "./App.css";
+
+// 🧭 Componente de navegação integrada
+function AppWithNavigation() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // 🎯 Determinar seção ativa baseada na URL
+  const getActiveSection = () => {
+    const path = location.pathname;
+    if (path.includes("/dashboard")) return "dashboard";
+    if (path.includes("/investment") || path.includes("/investir"))
+      return "investment";
+    if (path.includes("/portfolio") || path.includes("/carteira"))
+      return "portfolio";
+    if (path.includes("/analysis") || path.includes("/analises"))
+      return "analysis";
+    if (path.includes("/simulations") || path.includes("/simulacoes"))
+      return "simulations";
+    if (path.includes("/settings") || path.includes("/configuracoes"))
+      return "settings";
+    return "dashboard";
+  };
+
+  const [activeSection, setActiveSection] = useState(getActiveSection());
+
+  // 🔄 Atualizar seção ativa quando URL mudar
+  useEffect(() => {
+    setActiveSection(getActiveSection());
+  }, [location.pathname]);
+
+  // 🧭 Função para mudar seção (chamada pelo Sidebar)
+  const handleSectionChange = (sectionId) => {
+    console.log("🧭 Navegando para seção:", sectionId);
+
+    const routes = {
+      dashboard: "/dashboard",
+      investment: "/investment",
+      portfolio: "/portfolio",
+      analysis: "/analysis",
+      simulations: "/simulations",
+      settings: "/settings",
+      help: "/settings", // Redirecionar ajuda para configurações
+    };
+
+    const route = routes[sectionId];
+    if (route) {
+      navigate(route);
+      setActiveSection(sectionId);
+    }
+  };
+
+  return (
+    <Layout activeSection={activeSection} onSectionChange={handleSectionChange}>
+      <Routes>
+        {/* 🏠 Página inicial */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+        {/* 📊 Dashboard */}
+        <Route path="/dashboard" element={<Dashboard />} />
+
+        {/* 💰 Investimentos */}
+        <Route path="/investment" element={<Investment />} />
+        <Route path="/investir" element={<Investment />} />
+
+        {/* 📈 Carteira */}
+        <Route path="/portfolio" element={<Portfolio />} />
+        <Route path="/carteira" element={<Portfolio />} />
+
+        {/* 🔍 Análises */}
+        <Route path="/analysis" element={<Analysis />} />
+        <Route path="/analises" element={<Analysis />} />
+
+        {/* 🎯 Simulações */}
+        <Route path="/simulations" element={<Simulations />} />
+        <Route path="/simulacoes" element={<Simulations />} />
+
+        {/* ⚙️ Configurações */}
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/configuracoes" element={<Settings />} />
+
+        {/* 🚫 Rota não encontrada */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Layout>
+  );
+}
 
 // 🔧 Componente principal da aplicação
 function AppContent() {
@@ -53,38 +141,7 @@ function AppContent() {
     <Router>
       <AIProvider>
         <PortfolioProvider>
-          <Layout>
-            <Routes>
-              {/* 🏠 Página inicial */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-              {/* 📊 Dashboard */}
-              <Route path="/dashboard" element={<Dashboard />} />
-
-              {/* 💰 Investimentos */}
-              <Route path="/investment" element={<Investment />} />
-              <Route path="/investir" element={<Investment />} />
-
-              {/* 📈 Carteira */}
-              <Route path="/portfolio" element={<Portfolio />} />
-              <Route path="/carteira" element={<Portfolio />} />
-
-              {/* 🔍 Análises */}
-              <Route path="/analysis" element={<Analysis />} />
-              <Route path="/analises" element={<Analysis />} />
-
-              {/* 🎯 Simulações */}
-              <Route path="/simulations" element={<Simulations />} />
-              <Route path="/simulacoes" element={<Simulations />} />
-
-              {/* ⚙️ Configurações */}
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/configuracoes" element={<Settings />} />
-
-              {/* 🚫 Rota não encontrada */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </Layout>
+          <AppWithNavigation />
         </PortfolioProvider>
       </AIProvider>
     </Router>

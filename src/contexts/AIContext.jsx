@@ -231,7 +231,9 @@ CARTEIRA ATUAL:
 ${portfolio
   .map(
     (p) =>
-      `- ${p.ticker}: ${p.shares} cotas, R$ ${p.totalInvested} investido, Setor: ${p.sector || "N/A"}`
+      `- ${p.ticker}: ${p.shares} cotas, R$ ${
+        p.totalInvested
+      } investido, Setor: ${p.sector || "N/A"}`
   )
   .join("\n")}
 
@@ -281,79 +283,29 @@ RETORNE JSON com esta estrutura:
     if (cleanResponse.startsWith("```")) {
       cleanResponse = cleanResponse
         .replace(/```\s*/, "")
-        .replace /```\s*$/, "");
+        .replace(/```\s*$/, "");
     }
 
     return JSON.parse(cleanResponse);
   }
 
   // 🎯 PROMPT PICA DAS GALÁXIAS ULTIMATE: Sugestões de investimento personalizadas
-  async generateInvestmentSuggestions(eligibleFIIs, userProfile, currentPortfolio = []) {
+  async generateInvestmentSuggestions(
+    eligibleFIIs,
+    userProfile,
+    currentPortfolio = []
+  ) {
     const messages = [
       {
         role: "system",
-        content: `Você é uma COMBINAÇÃO SUPREMA de Warren Buffett + Ray Dalio + Peter Lynch + Joel Greenblatt especializada em FIIs brasileiros.
-
-EXPERTISE COMBINADA DE ELITE MUNDIAL:
-- Warren Buffett: Value investing, análise fundamentalista rigorosa, "compre empresas fantásticas a preços justos"
-- Ray Dalio: Diversificação inteligente, gestão de risco, All Weather Portfolio
-- Peter Lynch: Identificação de oportunidades, "compre o que você conhece", crescimento sustentável
-- Joel Greenblatt: Magic Formula, ROIC alto + P/E baixo adaptado para FIIs
-
-METODOLOGIA SUPREMA DE SELEÇÃO:
-
-1. FILTROS QUANTITATIVOS DE ELITE:
-- Dividend Yield: Mínimo 6% (superar Selic 10.75% + prêmio de risco)
-- P/VP: Máximo 1.30 para tijolo, 1.50 para recebíveis (valor justo)
-- Liquidez: Volume diário > R$ 100.000 (negociabilidade)
-- Consistência: 12+ meses de distribuições regulares
-- Crescimento: Patrimônio crescente 24 meses (sustentabilidade)
-- ROE Implícito: DY/P/VP > 5% (eficiência de capital)
-
-2. ANÁLISE QUALITATIVA SUPREMA:
-- Gestão: Track record 5+ anos, transparência, governança ESG
-- Ativos: Localização AAA, idade < 15 anos, certificações
-- Inquilinos: Investment grade, contratos 5+ anos, diversificação
-- Estratégia: Crescimento orgânico vs. aquisições inteligentes
-- Moat: Vantagem competitiva sustentável (localização, contratos)
-
-3. CONTEXTO MACRO BRASILEIRO SUPREMO:
-- Selic 10.75%: FIIs devem entregar DY > 12% total return
-- Inflação 4.5%: Reajustes contratuais IPCA+ essenciais
-- PIB +2.1%: Demanda por imóveis em recuperação gradual
-- Trabalho híbrido: Corporativo premium > genérico
-- E-commerce: Logística last-mile > grandes galpões
-- Nearshoring: Industrial próximo portos/fronteiras
-
-4. DIVERSIFICAÇÃO INTELIGENTE SUPREMA:
-- Setorial: Máximo 35% em um setor (concentração controlada)
-- Geográfica: SP máx 60%, RJ máx 25%, Outros mín 15%
-- Por gestora: Máximo 25% em uma gestora (risco gestor)
-- Tipo de ativo: 60% tijolo, 40% recebíveis (equilíbrio)
-- Por inquilino: Máximo 10% exposição direta
-
-5. PERFIL DE RISCO ADAPTADO SUPREMO:
-- Conservador: DY 8%+, P/VP <1.0, setores defensivos, gestoras tradicionais
-- Moderado: DY 6%+, P/VP <1.3, diversificação setorial, crescimento moderado
-- Arrojado: DY 5%+, P/VP <1.5, setores crescimento, oportunidades especiais
-
-6. MAGIC FORMULA ADAPTADA PARA FIIs:
-- Ranking 1: DY / P/VP (quanto maior, melhor)
-- Ranking 2: Crescimento patrimonial 24m (sustentabilidade)
-- Score Final: Média dos rankings (menor = melhor)
-
-INSTRUÇÕES SUPREMAS:
-- SEMPRE retorne EXATAMENTE 4 FIIs (não mais, não menos)
-- Cada FII deve ter alocação entre 20-30% (diversificação)
-- Justifique CADA escolha com análise fundamentalista profunda
-- Considere sinergia entre os FIIs escolhidos
-- Foque em total return (dividendos + valorização)
-
-RETORNE SEMPRE JSON VÁLIDO COM ANÁLISE SUPREMA.`,
+        content:
+          'Você é uma COMBINAÇÃO SUPREMA de Warren Buffett + Ray Dalio + Peter Lynch + Joel Greenblatt especializada em FIIs brasileiros.\n\nEXPERTISE COMBINADA DE ELITE MUNDIAL:\n- Warren Buffett: Value investing, análise fundamentalista rigorosa, "compre empresas fantásticas a preços justos"\n- Ray Dalio: Diversificação inteligente, gestão de risco, All Weather Portfolio\n- Peter Lynch: Identificação de oportunidades, "compre o que você conhece", crescimento sustentável\n- Joel Greenblatt: Magic Formula, ROIC alto + P/E baixo adaptado para FIIs\n\nMETODOLOGIA SUPREMA DE SELEÇÃO:\n\n1. FILTROS QUANTITATIVOS DE ELITE:\n- Dividend Yield: Mínimo 6% (superar Selic 10.75% + prêmio de risco)\n- P/VP: Máximo 1.30 para tijolo, 1.50 para recebíveis (valor justo)\n- Liquidez: Volume diário > R$ 100.000 (negociabilidade)\n- Consistência: 12+ meses de distribuições regulares\n- Crescimento: Patrimônio crescente 24 meses (sustentabilidade)\n- ROE Implícito: DY/P/VP > 5% (eficiência de capital)\n\n2. ANÁLISE QUALITATIVA SUPREMA:\n- Gestão: Track record 5+ anos, transparência, governança ESG\n- Ativos: Localização AAA, idade < 15 anos, certificações\n- Inquilinos: Investment grade, contratos 5+ anos, diversificação\n- Estratégia: Crescimento orgânico vs. aquisições inteligentes\n- Moat: Vantagem competitiva sustentável (localização, contratos)\n\n3. CONTEXTO MACRO BRASILEIRO SUPREMO:\n- Selic 10.75%: FIIs devem entregar DY > 12% total return\n- Inflação 4.5%: Reajustes contratuais IPCA+ essenciais\n- PIB +2.1%: Demanda por imóveis em recuperação gradual\n- Trabalho híbrido: Corporativo premium > genérico\n- E-commerce: Logística last-mile > grandes galpões\n- Nearshoring: Industrial próximo portos/fronteiras\n\n4. DIVERSIFICAÇÃO INTELIGENTE SUPREMA:\n- Setorial: Máximo 35% em um setor (concentração controlada)\n- Geográfica: SP máx 60%, RJ máx 25%, Outros mín 15%\n- Por gestora: Máximo 25% em uma gestora (risco gestor)\n- Tipo de ativo: 60% tijolo, 40% recebíveis (equilíbrio)\n- Por inquilino: Máximo 10% exposição direta\n\n5. PERFIL DE RISCO ADAPTADO SUPREMO:\n- Conservador: DY 8%+, P/VP <1.0, setores defensivos, gestoras tradicionais\n- Moderado: DY 6%+, P/VP <1.3, diversificação setorial, crescimento moderado\n- Arrojado: DY 5%+, P/VP <1.5, setores crescimento, oportunidades especiais\n\n6. MAGIC FORMULA ADAPTADA PARA FIIs:\n- Ranking 1: DY / P/VP (quanto maior, melhor)\n- Ranking 2: Crescimento patrimonial 24m (sustentabilidade)\n- Score Final: Média dos rankings (menor = melhor)\n\nINSTRUÇÕES SUPREMAS:\n- SEMPRE retorne EXATAMENTE 4 FIIs (não mais, não menos)\n- Cada FII deve ter alocação entre 20-30% (diversificação)\n- Justifique CADA escolha com análise fundamentalista profunda\n- Considere sinergia entre os FIIs escolhidos\n- Foque em total return (dividendos + valorização)\n\nRETORNE SEMPRE JSON VÁLIDO COM ANÁLISE SUPREMA.',
       },
       {
         role: "user",
-        content: `Analise estes ${eligibleFIIs.length} FIIs PRÉ-SELECIONADOS e escolha os 4 MELHORES com metodologia SUPREMA:
+        content: `Analise estes ${
+          eligibleFIIs.length
+        } FIIs PRÉ-SELECIONADOS e escolha os 4 MELHORES com metodologia SUPREMA:
 
 FIIS PRÉ-SELECIONADOS (já filtrados por qualidade):
 ${eligibleFIIs
@@ -364,16 +316,21 @@ ${eligibleFIIs
   .join("\n")}
 
 CARTEIRA ATUAL:
-${currentPortfolio.length > 0 
-  ? currentPortfolio.map(p => `${p.ticker}: ${p.shares} cotas, ${p.sector || "N/A"}`).join("\n")
-  : "Nenhum investimento atual (carteira nova)"
+${
+  currentPortfolio.length > 0
+    ? currentPortfolio
+        .map((p) => `${p.ticker}: ${p.shares} cotas, ${p.sector || "N/A"}`)
+        .join("\n")
+    : "Nenhum investimento atual (carteira nova)"
 }
 
 PERFIL DO INVESTIDOR:
 - Perfil de Risco: ${userProfile.riskProfile}
 - Objetivo: ${userProfile.investmentGoal}
 - Prazo: ${userProfile.timeHorizon}
-- Valor para Investir: R$ ${userProfile.investmentAmount?.toLocaleString() || "10.000"}
+- Valor para Investir: R$ ${
+          userProfile.investmentAmount?.toLocaleString() || "10.000"
+        }
 
 CONTEXTO MACRO ATUAL:
 - Selic: 10.75% (competição direta - FIIs devem superar)
@@ -438,7 +395,7 @@ RETORNE JSON com esta estrutura EXATA (4 FIIs obrigatório):
 
     // 🔧 Limpeza robusta do JSON
     let cleanResponse = response.trim();
-    
+
     // Remover markdown se presente
     if (cleanResponse.startsWith("```json")) {
       cleanResponse = cleanResponse
@@ -454,7 +411,7 @@ RETORNE JSON com esta estrutura EXATA (4 FIIs obrigatório):
     // Remover texto antes/depois do JSON se presente
     const jsonStart = cleanResponse.indexOf("{");
     const jsonEnd = cleanResponse.lastIndexOf("}") + 1;
-    
+
     if (jsonStart !== -1 && jsonEnd !== -1) {
       cleanResponse = cleanResponse.substring(jsonStart, jsonEnd);
     }
@@ -609,7 +566,7 @@ export const AIProvider = ({ children }) => {
           openai_configured: !!data.openai_api_key,
           brapi_configured: !!data.brapi_token,
         });
-        
+
         setUserSettings({
           openai_api_key: data.openai_api_key || "",
           brapi_token: data.brapi_token || "",
@@ -640,7 +597,7 @@ export const AIProvider = ({ children }) => {
   const setApiKey = async (key) => {
     try {
       console.log("💾 [AIContext] Configurando API key...");
-      
+
       const { data, error } = await supabase
         .from("user_settings")
         .upsert(
@@ -658,9 +615,9 @@ export const AIProvider = ({ children }) => {
       if (error) throw error;
 
       openAIManager.setApiKey(key);
-      setUserSettings(prev => ({ ...prev, openai_api_key: key }));
+      setUserSettings((prev) => ({ ...prev, openai_api_key: key }));
       setIsConfigured(!!key);
-      
+
       console.log("✅ [AIContext] API key configurada com sucesso");
     } catch (err) {
       console.error("❌ [AIContext] Erro ao configurar API key:", err);
@@ -671,7 +628,7 @@ export const AIProvider = ({ children }) => {
   const removeApiKey = async () => {
     try {
       console.log("🗑️ [AIContext] Removendo API key...");
-      
+
       const { data, error } = await supabase
         .from("user_settings")
         .upsert(
@@ -689,9 +646,9 @@ export const AIProvider = ({ children }) => {
       if (error) throw error;
 
       openAIManager.setApiKey(null);
-      setUserSettings(prev => ({ ...prev, openai_api_key: "" }));
+      setUserSettings((prev) => ({ ...prev, openai_api_key: "" }));
       setIsConfigured(false);
-      
+
       console.log("✅ [AIContext] API key removida com sucesso");
     } catch (err) {
       console.error("❌ [AIContext] Erro ao remover API key:", err);
@@ -711,28 +668,44 @@ export const AIProvider = ({ children }) => {
   // 🤖 Funções da IA
   const analyzeFII = async (fiiData, userProfile) => {
     if (!isConfigured) {
-      throw new Error("OpenAI não configurada. Configure sua API key nas configurações.");
+      throw new Error(
+        "OpenAI não configurada. Configure sua API key nas configurações."
+      );
     }
     return await openAIManager.analyzeFII(fiiData, userProfile);
   };
 
   const analyzePortfolio = async (portfolio, userProfile) => {
     if (!isConfigured) {
-      throw new Error("OpenAI não configurada. Configure sua API key nas configurações.");
+      throw new Error(
+        "OpenAI não configurada. Configure sua API key nas configurações."
+      );
     }
     return await openAIManager.analyzePortfolio(portfolio, userProfile);
   };
 
-  const generateInvestmentSuggestions = async (eligibleFIIs, userProfile, currentPortfolio = []) => {
+  const generateInvestmentSuggestions = async (
+    eligibleFIIs,
+    userProfile,
+    currentPortfolio = []
+  ) => {
     if (!isConfigured) {
-      throw new Error("OpenAI não configurada. Configure sua API key nas configurações.");
+      throw new Error(
+        "OpenAI não configurada. Configure sua API key nas configurações."
+      );
     }
-    return await openAIManager.generateInvestmentSuggestions(eligibleFIIs, userProfile, currentPortfolio);
+    return await openAIManager.generateInvestmentSuggestions(
+      eligibleFIIs,
+      userProfile,
+      currentPortfolio
+    );
   };
 
   const generateMarketAnalysis = async (userProfile) => {
     if (!isConfigured) {
-      throw new Error("OpenAI não configurada. Configure sua API key nas configurações.");
+      throw new Error(
+        "OpenAI não configurada. Configure sua API key nas configurações."
+      );
     }
     return await openAIManager.generateMarketAnalysis(userProfile);
   };
@@ -742,19 +715,19 @@ export const AIProvider = ({ children }) => {
     isConfigured,
     isLoading,
     userSettings,
-    
+
     // Funções de configuração (compatibilidade)
     setApiKey,
     removeApiKey,
     getApiKey,
     getBrapiToken,
-    
+
     // Funções da IA
     analyzeFII,
     analyzePortfolio,
     generateInvestmentSuggestions,
     generateMarketAnalysis,
-    
+
     // Função para recarregar configurações
     loadUserSettings,
   };
@@ -772,4 +745,3 @@ export const useAI = () => {
 };
 
 export default AIContext;
-

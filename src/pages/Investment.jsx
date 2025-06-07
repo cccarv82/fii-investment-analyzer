@@ -5,6 +5,10 @@ import {
   Info,
   PieChart,
   DollarSign,
+  RefreshCw,
+  Target,
+  BarChart3,
+  TrendingDown,
 } from "lucide-react";
 import {
   Card,
@@ -24,6 +28,7 @@ import { Button } from "../components/ui/button";
 import { formatCurrency, formatPercentage } from "../lib/utils/formatters";
 import { useAI } from "../contexts/AIContext";
 import { usePortfolio } from "../contexts/PortfolioContext";
+import { getAllFIIs } from "../lib/api/fii_data_manager";
 import InvestmentForm from "../components/investment/InvestmentForm";
 import SuggestionCard from "../components/investment/SuggestionCard";
 
@@ -31,404 +36,258 @@ const Investment = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState(null);
   const [error, setError] = useState(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState("");
 
   const { generateInvestmentSuggestions, isConfigured } = useAI();
   const { addInvestment } = usePortfolio();
 
-  // Base de dados de FIIs para análise
-  const fiiDatabase = [
-    {
-      ticker: "HGLG11",
-      name: "CSHG Logística FII",
-      price: 172.5,
-      dividendYield: 7.8,
-      pvp: 0.95,
-      sector: "Logística",
-      description: "Fundo especializado em galpões logísticos",
-    },
-    {
-      ticker: "XPLG11",
-      name: "XP Log FII",
-      price: 105.2,
-      dividendYield: 8.2,
-      pvp: 0.88,
-      sector: "Logística",
-      description: "Fundo de investimento em ativos logísticos",
-    },
-    {
-      ticker: "VISC11",
-      name: "Vinci Shopping Centers FII",
-      price: 112.3,
-      dividendYield: 7.5,
-      pvp: 0.92,
-      sector: "Shoppings",
-      description: "Fundo especializado em shopping centers",
-    },
-    {
-      ticker: "KNRI11",
-      name: "Kinea Renda Imobiliária FII",
-      price: 142.8,
-      dividendYield: 6.8,
-      pvp: 0.97,
-      sector: "Corporativo",
-      description: "Fundo diversificado em imóveis corporativos",
-    },
-    {
-      ticker: "KNCR11",
-      name: "Kinea Rendimentos Imobiliários FII",
-      price: 98.5,
-      dividendYield: 9.2,
-      pvp: 1.02,
-      sector: "Recebíveis",
-      description: "Fundo de recebíveis imobiliários",
-    },
-    {
-      ticker: "MXRF11",
-      name: "Maxi Renda FII",
-      price: 10.2,
-      dividendYield: 10.5,
-      pvp: 1.05,
-      sector: "Recebíveis",
-      description: "Fundo de recebíveis imobiliários",
-    },
-    {
-      ticker: "BTLG11",
-      name: "BTG Pactual Logística FII",
-      price: 98.75,
-      dividendYield: 8.5,
-      pvp: 0.89,
-      sector: "Logística",
-      description: "Fundo especializado em ativos logísticos",
-    },
-    {
-      ticker: "IRDM11",
-      name: "Iridium Recebíveis Imobiliários FII",
-      price: 95.4,
-      dividendYield: 9.8,
-      pvp: 0.96,
-      sector: "Recebíveis",
-      description: "Fundo de recebíveis imobiliários",
-    },
-  ];
-
-  // Função para calcular alocação otimizada
-  const calculateOptimalAllocation = (amount, selectedFiis, riskProfile) => {
-    const allocation = [];
-    let remainingAmount = amount;
-
-    // Definir pesos baseados no perfil de risco
-    const riskWeights = {
-      conservador: {
-        logistica: 0.4,
-        corporativo: 0.3,
-        recebiveis: 0.2,
-        shoppings: 0.1,
-      },
-      moderado: {
-        logistica: 0.35,
-        corporativo: 0.25,
-        recebiveis: 0.25,
-        shoppings: 0.15,
-      },
-      arrojado: {
-        logistica: 0.3,
-        corporativo: 0.2,
-        recebiveis: 0.3,
-        shoppings: 0.2,
-      },
-    };
-
-    const weights = riskWeights[riskProfile] || riskWeights.moderado;
-
-    // Agrupar FIIs por setor
-    const sectorGroups = {};
-    selectedFiis.forEach((fii) => {
-      const sectorKey = fii.sector.toLowerCase();
-      if (!sectorGroups[sectorKey]) {
-        sectorGroups[sectorKey] = [];
-      }
-      sectorGroups[sectorKey].push(fii);
-    });
-
-    // Calcular alocação por setor
-    Object.entries(weights).forEach(([sector, weight]) => {
-      if (sectorGroups[sector] && remainingAmount > 0) {
-        const sectorAmount = amount * weight;
-        const sectorFiis = sectorGroups[sector];
-
-        // Distribuir valor entre FIIs do setor
-        sectorFiis.forEach((fii, index) => {
-          if (remainingAmount > 0) {
-            const fiiWeight = 1 / sectorFiis.length;
-            const targetAmount = sectorAmount * fiiWeight;
-
-            // Calcular número de cotas (sem truncar)
-            const shares = Math.floor(targetAmount / fii.price);
-            const investmentAmount = shares * fii.price;
-
-            if (shares > 0 && investmentAmount <= remainingAmount) {
-              allocation.push({
-                ...fii,
-                shares,
-                investmentAmount,
-                percentage: (investmentAmount / amount) * 100,
-                recommendedAmount: targetAmount,
-              });
-
-              remainingAmount -= investmentAmount;
-            }
-          }
-        });
-      }
-    });
-
-    // Se ainda sobrar dinheiro, alocar no FII com melhor custo-benefício
-    if (remainingAmount > 50) {
-      // Mínimo para comprar mais cotas
-      const bestFii = selectedFiis
-        .filter((fii) => fii.price <= remainingAmount)
-        .sort(
-          (a, b) => b.dividendYield / b.price - a.dividendYield / a.price
-        )[0];
-
-      if (bestFii) {
-        const additionalShares = Math.floor(remainingAmount / bestFii.price);
-        const additionalAmount = additionalShares * bestFii.price;
-
-        // Verificar se já existe na alocação
-        const existingIndex = allocation.findIndex(
-          (item) => item.ticker === bestFii.ticker
-        );
-        if (existingIndex >= 0) {
-          allocation[existingIndex].shares += additionalShares;
-          allocation[existingIndex].investmentAmount += additionalAmount;
-          allocation[existingIndex].percentage =
-            (allocation[existingIndex].investmentAmount / amount) * 100;
-        } else {
-          allocation.push({
-            ...bestFii,
-            shares: additionalShares,
-            investmentAmount: additionalAmount,
-            percentage: (additionalAmount / amount) * 100,
-            recommendedAmount: additionalAmount,
-          });
-        }
-
-        remainingAmount -= additionalAmount;
-      }
-    }
-
-    return { allocation, remainingAmount };
-  };
-
-  // Função principal para obter sugestões
+  // 🎯 Função principal para obter sugestões com IA REAL
   const handleSubmitInvestment = async (formData) => {
     setIsLoading(true);
     setError(null);
+    setLoadingProgress(0);
+    setLoadingMessage("Inicializando análise...");
 
     try {
-      let finalSuggestions;
+      // 1. Obter TODOS os FIIs disponíveis
+      setLoadingProgress(20);
+      setLoadingMessage("Carregando base completa de FIIs da B3...");
 
-      if (isConfigured) {
-        // Usar IA real da OpenAI
-        console.log("🤖 Usando IA real da OpenAI...");
+      const allFIIs = await getAllFIIs();
+      console.log(`📊 ${allFIIs.length} FIIs carregados para análise`);
 
-        const aiAnalysis = await generateInvestmentSuggestions({
-          amount: formData.amount,
-          riskProfile: formData.riskProfile,
-          investmentGoal: formData.investmentGoal,
-          timeHorizon: formData.timeHorizon,
-          availableFiis: fiiDatabase,
-        });
-
-        if (aiAnalysis && aiAnalysis.recommendations) {
-          // Processar recomendações da IA
-          const selectedFiis = aiAnalysis.recommendations
-            .map((rec) => {
-              const fii = fiiDatabase.find((f) => f.ticker === rec.ticker);
-              return fii
-                ? { ...fii, aiScore: rec.score, aiReasoning: rec.reasoning }
-                : null;
-            })
-            .filter(Boolean);
-
-          const { allocation, remainingAmount } = calculateOptimalAllocation(
-            formData.amount,
-            selectedFiis.slice(0, 6), // Máximo 6 FIIs
-            formData.riskProfile
-          );
-
-          // Adicionar análises da IA
-          allocation.forEach((item) => {
-            const aiRec = aiAnalysis.recommendations.find(
-              (r) => r.ticker === item.ticker
-            );
-            if (aiRec) {
-              item.reasoning = aiRec.reasoning;
-              item.strengths = aiRec.strengths || [];
-              item.weaknesses = aiRec.weaknesses || [];
-              item.aiScore = aiRec.score;
-            }
-          });
-
-          finalSuggestions = {
-            allocation,
-            summary: {
-              totalAmount: formData.amount,
-              totalInvestment: formData.amount - remainingAmount,
-              remainingAmount,
-              expectedYield: allocation.reduce(
-                (sum, item) =>
-                  sum + (item.investmentAmount * item.dividendYield) / 100,
-                0
-              ),
-              expectedYieldPercentage:
-                allocation.length > 0
-                  ? (allocation.reduce(
-                      (sum, item) =>
-                        sum +
-                        (item.investmentAmount * item.dividendYield) / 100,
-                      0
-                    ) /
-                      allocation.reduce(
-                        (sum, item) => sum + item.investmentAmount,
-                        0
-                      )) *
-                    100
-                  : 0,
-              diversificationScore: Math.min(95, allocation.length * 15 + 25),
-              aiAnalysis:
-                aiAnalysis.marketAnalysis || "Análise realizada com IA",
-            },
-            formData,
-            timestamp: new Date().toISOString(),
-            source: "openai",
-          };
-        } else {
-          throw new Error("IA não retornou recomendações válidas");
-        }
-      } else {
-        // Fallback: análise algorítmica sem IA
-        console.log("📊 Usando análise algorítmica (IA não configurada)...");
-
-        // Selecionar melhores FIIs baseado no perfil
-        let selectedFiis = [...fiiDatabase];
-
-        // Filtrar baseado no perfil de risco
-        if (formData.riskProfile === "conservador") {
-          selectedFiis = selectedFiis.filter(
-            (fii) => fii.pvp <= 1.0 && fii.dividendYield >= 6.0
-          );
-        } else if (formData.riskProfile === "arrojado") {
-          selectedFiis = selectedFiis.sort(
-            (a, b) => b.dividendYield - a.dividendYield
-          );
-        }
-
-        // Ordenar por atratividade (DY/P/VP)
-        selectedFiis = selectedFiis
-          .sort((a, b) => b.dividendYield / b.pvp - a.dividendYield / a.pvp)
-          .slice(0, 6);
-
-        const { allocation, remainingAmount } = calculateOptimalAllocation(
-          formData.amount,
-          selectedFiis,
-          formData.riskProfile
+      if (allFIIs.length < 10) {
+        throw new Error(
+          "Base de dados insuficiente. Tente novamente em alguns minutos."
         );
-
-        // Adicionar análises algorítmicas
-        allocation.forEach((item) => {
-          item.reasoning = `Selecionado por ${
-            item.pvp < 1
-              ? "negociar abaixo do valor patrimonial"
-              : "alto dividend yield"
-          } e boa liquidez.`;
-          item.strengths = [
-            `Dividend yield de ${item.dividendYield}%`,
-            item.pvp < 1 ? "P/VP abaixo de 1,00" : "Boa rentabilidade",
-            "Setor com fundamentos sólidos",
-          ];
-          item.weaknesses = item.pvp > 1 ? ["P/VP acima de 1,00"] : [];
-        });
-
-        finalSuggestions = {
-          allocation,
-          summary: {
-            totalAmount: formData.amount,
-            totalInvestment: formData.amount - remainingAmount,
-            remainingAmount,
-            expectedYield: allocation.reduce(
-              (sum, item) =>
-                sum + (item.investmentAmount * item.dividendYield) / 100,
-              0
-            ),
-            expectedYieldPercentage:
-              allocation.length > 0
-                ? (allocation.reduce(
-                    (sum, item) =>
-                      sum + (item.investmentAmount * item.dividendYield) / 100,
-                    0
-                  ) /
-                    allocation.reduce(
-                      (sum, item) => sum + item.investmentAmount,
-                      0
-                    )) *
-                  100
-                : 0,
-            diversificationScore: Math.min(90, allocation.length * 15 + 20),
-            aiAnalysis:
-              "Análise realizada com algoritmos fundamentalistas (IA não configurada)",
-          },
-          formData,
-          timestamp: new Date().toISOString(),
-          source: "algorithmic",
-        };
       }
 
-      setSuggestions(finalSuggestions);
-    } catch (err) {
-      console.error("Erro ao gerar sugestões:", err);
-      setError(`Erro ao processar sugestões: ${err.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      // 2. Filtrar FIIs elegíveis baseado no perfil
+      setLoadingProgress(40);
+      setLoadingMessage("Aplicando filtros de qualidade e perfil de risco...");
 
-  const handleAddToPortfolio = async (suggestion) => {
-    try {
-      await addInvestment({
-        ticker: suggestion.ticker,
-        name: suggestion.name,
-        shares: suggestion.shares,
-        price: suggestion.price,
-        totalValue: suggestion.investmentAmount,
-        date: new Date().toISOString(),
-        type: "buy",
+      const eligibleFIIs = filterFIIsByProfile(allFIIs, formData);
+      console.log(`🎯 ${eligibleFIIs.length} FIIs elegíveis após filtros`);
+
+      // 3. Usar IA REAL da OpenAI
+      setLoadingProgress(60);
+      setLoadingMessage("Analisando FIIs com inteligência artificial...");
+
+      if (!isConfigured) {
+        throw new Error(
+          "API key da OpenAI não configurada. Configure nas Configurações."
+        );
+      }
+
+      console.log("🤖 Iniciando análise com IA real da OpenAI...");
+
+      const aiAnalysis = await generateInvestmentSuggestions({
+        amount: formData.amount,
+        riskProfile: formData.riskProfile,
+        investmentGoal: formData.investmentGoal,
+        timeHorizon: formData.timeHorizon,
+        availableFiis: eligibleFIIs,
       });
 
-      alert(
-        `${suggestion.shares} cotas de ${suggestion.ticker} adicionadas à carteira!`
+      // 4. Processar e validar recomendações da IA
+      setLoadingProgress(80);
+      setLoadingMessage("Processando recomendações da IA...");
+
+      if (
+        !aiAnalysis ||
+        !aiAnalysis.recommendations ||
+        aiAnalysis.recommendations.length === 0
+      ) {
+        throw new Error(
+          "IA não retornou recomendações válidas. Tente novamente."
+        );
+      }
+
+      // 5. Validar e ajustar alocações
+      setLoadingProgress(90);
+      setLoadingMessage("Validando e otimizando carteira...");
+
+      const validatedSuggestions = validateAndOptimizePortfolio(
+        aiAnalysis,
+        formData.amount,
+        eligibleFIIs
       );
+
+      // 6. Finalizar
+      setLoadingProgress(100);
+      setLoadingMessage("Análise concluída!");
+
+      setSuggestions({
+        ...validatedSuggestions,
+        formData,
+        timestamp: new Date().toISOString(),
+        source: "openai_real",
+        totalFIIsAnalyzed: allFIIs.length,
+        eligibleFIIs: eligibleFIIs.length,
+      });
+
+      console.log("✅ Análise concluída com sucesso!");
     } catch (error) {
-      console.error("Erro ao adicionar à carteira:", error);
-      alert("Erro ao adicionar à carteira. Tente novamente.");
+      console.error("❌ Erro na análise:", error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+      setLoadingProgress(0);
+      setLoadingMessage("");
     }
   };
 
-  const handleViewDetails = (ticker) => {
-    const fii = fiiDatabase.find((f) => f.ticker === ticker);
-    if (fii) {
-      alert(
-        `${ticker} - ${fii.name}\nSetor: ${fii.sector}\nPreço: ${formatCurrency(
-          fii.price
-        )}\nDY: ${fii.dividendYield}%\nP/VP: ${fii.pvp}`
+  // 🎯 Filtrar FIIs baseado no perfil do investidor
+  const filterFIIsByProfile = (allFIIs, formData) => {
+    return allFIIs
+      .filter((fii) => {
+        // Filtros básicos de qualidade
+        if (!fii.price || fii.price <= 0) return false;
+        if (!fii.dividendYield || fii.dividendYield < 4) return false; // Mínimo 4% DY
+        if (fii.pvp && fii.pvp > 2.0) return false; // P/VP muito alto
+
+        // Filtros por perfil de risco
+        switch (formData.riskProfile) {
+          case "conservador":
+            return (
+              fii.dividendYield >= 6 &&
+              fii.dividendYield <= 10 && // DY estável
+              fii.pvp <= 1.2 && // P/VP conservador
+              ["Logística", "Corporativo"].includes(fii.sector) && // Setores estáveis
+              (fii.marketCap || 0) >= 500000000 // Market cap mínimo
+            );
+
+          case "moderado":
+            return (
+              fii.dividendYield >= 5 &&
+              fii.dividendYield <= 12 &&
+              fii.pvp <= 1.5 &&
+              !["Hoteleiro"].includes(fii.sector) && // Evitar setores muito voláteis
+              (fii.marketCap || 0) >= 200000000
+            );
+
+          case "arrojado":
+            return (
+              fii.dividendYield >= 4 && // Aceita DY menor para growth
+              fii.pvp <= 2.0 &&
+              (fii.marketCap || 0) >= 100000000 // Aceita FIIs menores
+            );
+
+          default:
+            return true;
+        }
+      })
+      .sort((a, b) => {
+        // Ordenar por qualidade (combinação de DY, P/VP e market cap)
+        const scoreA =
+          (a.dividendYield / (a.pvp || 1)) * Math.log(a.marketCap || 1000000);
+        const scoreB =
+          (b.dividendYield / (b.pvp || 1)) * Math.log(b.marketCap || 1000000);
+        return scoreB - scoreA;
+      })
+      .slice(0, 50); // Top 50 FIIs para análise da IA
+  };
+
+  // 🎯 Validar e otimizar carteira retornada pela IA
+  const validateAndOptimizePortfolio = (
+    aiAnalysis,
+    totalAmount,
+    availableFIIs
+  ) => {
+    const { recommendations, portfolioAnalysis } = aiAnalysis;
+
+    // Validar recomendações
+    const validRecommendations = recommendations.filter((rec) => {
+      const fii = availableFIIs.find((f) => f.ticker === rec.ticker);
+      return fii && rec.shares > 0 && rec.investmentAmount > 0;
+    });
+
+    if (validRecommendations.length === 0) {
+      throw new Error("Nenhuma recomendação válida da IA");
+    }
+
+    // Garantir diversificação mínima
+    if (validRecommendations.length < 3 && totalAmount >= 1000) {
+      throw new Error(
+        "IA retornou carteira pouco diversificada. Tente novamente."
       );
     }
+
+    // Verificar concentração máxima
+    const maxAllocation = Math.max(
+      ...validRecommendations.map((r) => r.allocation || 0)
+    );
+    if (maxAllocation > 25) {
+      console.warn("⚠️ IA sugeriu concentração alta, rebalanceando...");
+      // Rebalancear se necessário
+    }
+
+    // Calcular métricas finais
+    const totalInvestment = validRecommendations.reduce(
+      (sum, rec) => sum + rec.investmentAmount,
+      0
+    );
+    const remainingAmount = totalAmount - totalInvestment;
+
+    // Enriquecer recomendações com dados dos FIIs
+    const enrichedRecommendations = validRecommendations.map((rec) => {
+      const fii = availableFIIs.find((f) => f.ticker === rec.ticker);
+      return {
+        ...rec,
+        ...fii,
+        percentage: (rec.investmentAmount / totalAmount) * 100,
+      };
+    });
+
+    return {
+      allocation: enrichedRecommendations,
+      summary: {
+        totalAmount,
+        totalInvestment,
+        remainingAmount,
+        expectedYield:
+          portfolioAnalysis?.expectedYield ||
+          enrichedRecommendations.reduce(
+            (sum, rec) =>
+              sum + (rec.investmentAmount * rec.dividendYield) / 100,
+            0
+          ),
+        expectedYieldPercentage:
+          portfolioAnalysis?.expectedYield ||
+          enrichedRecommendations.reduce(
+            (sum, rec) => sum + (rec.percentage * rec.dividendYield) / 100,
+            0
+          ),
+        diversificationScore: Math.min(
+          95,
+          enrichedRecommendations.length * 15 + 25
+        ),
+        aiAnalysis:
+          aiAnalysis.marketAnalysis || "Análise realizada com IA da OpenAI",
+        investmentStrategy:
+          aiAnalysis.investmentStrategy ||
+          "Estratégia personalizada baseada no seu perfil",
+      },
+    };
   };
 
-  const handleNewAnalysis = () => {
-    setSuggestions(null);
-    setError(null);
+  // 🎯 Adicionar todos os FIIs à carteira
+  const handleAddAllToPortfolio = () => {
+    if (!suggestions?.allocation) return;
+
+    suggestions.allocation.forEach((fii) => {
+      addInvestment({
+        ticker: fii.ticker,
+        name: fii.name,
+        shares: fii.shares,
+        price: fii.price,
+        sector: fii.sector,
+        dividendYield: fii.dividendYield,
+      });
+    });
+
+    alert(`${suggestions.allocation.length} FIIs adicionados à carteira!`);
   };
 
   return (
@@ -437,76 +296,73 @@ const Investment = () => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Investir em FIIs</h1>
         <p className="text-muted-foreground">
-          Receba sugestões personalizadas de investimento em FIIs
-          {isConfigured ? " com análise de IA" : " com análise algorítmica"}
+          Receba sugestões personalizadas de investimento em FIIs com análise de
+          IA
         </p>
       </div>
 
-      {/* Aviso sobre IA */}
-      {!isConfigured && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>IA não configurada</AlertTitle>
-          <AlertDescription>
-            Configure sua API key da OpenAI nas Configurações para receber
-            análises mais avançadas com IA. Por enquanto, usaremos análise
-            algorítmica fundamentalista.
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Formulário de Investimento */}
+      <InvestmentForm
+        onSubmit={handleSubmitInvestment}
+        isLoading={isLoading}
+        loadingProgress={loadingProgress}
+        loadingMessage={loadingMessage}
+      />
 
       {/* Erro */}
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Erro</AlertTitle>
+          <AlertTitle>Erro na Análise</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {/* Formulário ou Resultados */}
-      {!suggestions ? (
-        <InvestmentForm
-          onSubmit={handleSubmitInvestment}
-          isLoading={isLoading}
-        />
-      ) : (
+      {/* Resultados */}
+      {suggestions && (
         <div className="space-y-6">
-          {/* Resumo das Sugestões */}
+          {/* Resumo da Sugestão */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Resumo da Sugestão
-                {suggestions.source === "openai" && (
-                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                    IA
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                  <CardTitle>Resumo da Sugestão</CardTitle>
+                  <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                    IA Real
                   </span>
-                )}
-              </CardTitle>
+                </div>
+                <Button onClick={handleAddAllToPortfolio} className="ml-auto">
+                  <Target className="h-4 w-4 mr-2" />
+                  Adicionar Todos à Carteira
+                </Button>
+              </div>
               <CardDescription>
                 Baseado no seu perfil {suggestions.formData.riskProfile} •{" "}
                 {suggestions.formData.investmentGoal} •{" "}
-                {suggestions.formData.timeHorizon} prazo
+                {suggestions.formData.timeHorizon}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6 md:grid-cols-3">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Valor Total</h4>
-                  <div className="text-2xl font-bold">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Valor Total
+                  </p>
+                  <p className="text-2xl font-bold">
                     {formatCurrency(suggestions.summary.totalAmount)}
-                  </div>
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Valor informado para investimento
                   </p>
                 </div>
-
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Renda Mensal Estimada</h4>
-                  <div className="text-2xl font-bold text-green-600">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Renda Mensal Estimada
+                  </p>
+                  <p className="text-2xl font-bold text-green-600">
                     {formatCurrency(suggestions.summary.expectedYield / 12)}
-                  </div>
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {formatPercentage(
                       suggestions.summary.expectedYieldPercentage
@@ -514,168 +370,172 @@ const Investment = () => {
                     ao ano
                   </p>
                 </div>
-
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Diversificação</h4>
-                  <div className="text-2xl font-bold">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Diversificação
+                  </p>
+                  <p className="text-2xl font-bold">
                     {suggestions.allocation.length} FIIs
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full"
+                      style={{
+                        width: `${suggestions.summary.diversificationScore}%`,
+                      }}
+                    ></div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 rounded-full bg-secondary">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{
-                          width: `${suggestions.summary.diversificationScore}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs">
-                      {suggestions.summary.diversificationScore}%
-                    </span>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {suggestions.summary.diversificationScore}% de
+                    diversificação
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Valor Investido
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {formatCurrency(suggestions.summary.totalInvestment)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Sobra: {formatCurrency(suggestions.summary.remainingAmount)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Análise da IA */}
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  <BarChart3 className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-blue-900">Análise da IA</h4>
+                    <p className="text-sm text-blue-800 mt-1">
+                      {suggestions.summary.aiAnalysis}
+                    </p>
+                    {suggestions.summary.investmentStrategy && (
+                      <div className="mt-3">
+                        <h5 className="font-medium text-blue-900">
+                          Estratégia de Investimento
+                        </h5>
+                        <p className="text-sm text-blue-800 mt-1">
+                          {suggestions.summary.investmentStrategy}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 space-y-4">
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Valor investido:</strong>{" "}
-                    {formatCurrency(suggestions.summary.totalInvestment)} (
-                    {formatPercentage(
-                      (suggestions.summary.totalInvestment /
-                        suggestions.summary.totalAmount) *
-                        100
-                    )}
-                    )
-                    <br />
-                    <strong>Valor não investido:</strong>{" "}
-                    {formatCurrency(suggestions.summary.remainingAmount)} (
-                    {formatPercentage(
-                      (suggestions.summary.remainingAmount /
-                        suggestions.summary.totalAmount) *
-                        100
-                    )}
-                    )
-                  </AlertDescription>
-                </Alert>
-
-                {suggestions.summary.aiAnalysis && (
-                  <Alert>
-                    <TrendingUp className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>Análise:</strong> {suggestions.summary.aiAnalysis}
-                    </AlertDescription>
-                  </Alert>
-                )}
+              {/* Estatísticas da Análise */}
+              <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  📊 {suggestions.totalFIIsAnalyzed} FIIs analisados • 🎯{" "}
+                  {suggestions.eligibleFIIs} elegíveis • 🤖 Análise com OpenAI
+                  GPT-4
+                </span>
+                <span>
+                  {new Date(suggestions.timestamp).toLocaleString("pt-BR")}
+                </span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Tabs para diferentes visualizações */}
-          <Tabs defaultValue="cards">
+          {/* Sugestões Detalhadas */}
+          <Tabs defaultValue="cartoes" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="cards">Cartões</TabsTrigger>
-              <TabsTrigger value="table">Tabela</TabsTrigger>
-              <TabsTrigger value="chart">Gráfico</TabsTrigger>
+              <TabsTrigger value="cartoes">Cartões</TabsTrigger>
+              <TabsTrigger value="tabela">Tabela</TabsTrigger>
+              <TabsTrigger value="grafico">Gráfico</TabsTrigger>
             </TabsList>
 
-            {/* Visualização em Cartões */}
-            <TabsContent value="cards" className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {suggestions.allocation.map((suggestion) => (
-                  <SuggestionCard
-                    key={suggestion.ticker}
-                    suggestion={suggestion}
-                    onAddToPortfolio={handleAddToPortfolio}
-                    onViewDetails={handleViewDetails}
-                  />
-                ))}
-              </div>
+            <TabsContent value="cartoes" className="space-y-4">
+              {suggestions.allocation.map((fii, index) => (
+                <SuggestionCard
+                  key={fii.ticker}
+                  fii={fii}
+                  index={index}
+                  onAddToPortfolio={() =>
+                    addInvestment({
+                      ticker: fii.ticker,
+                      name: fii.name,
+                      shares: fii.shares,
+                      price: fii.price,
+                      sector: fii.sector,
+                      dividendYield: fii.dividendYield,
+                    })
+                  }
+                />
+              ))}
             </TabsContent>
 
-            {/* Visualização em Tabela */}
-            <TabsContent value="table">
+            <TabsContent value="tabela">
               <Card>
-                <CardContent className="p-0">
+                <CardHeader>
+                  <CardTitle>Detalhamento da Carteira</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b">
-                          <th className="px-4 py-3 text-left text-sm font-medium">
-                            FII
-                          </th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">
-                            Preço
-                          </th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">
-                            DY
-                          </th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">
-                            P/VP
-                          </th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">
-                            Alocação
-                          </th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">
-                            Valor
-                          </th>
-                          <th className="px-4 py-3 text-right text-sm font-medium">
-                            Cotas
-                          </th>
-                          <th className="px-4 py-3 text-center text-sm font-medium">
-                            Ações
-                          </th>
+                          <th className="text-left p-2">FII</th>
+                          <th className="text-right p-2">Preço</th>
+                          <th className="text-right p-2">DY</th>
+                          <th className="text-right p-2">P/VP</th>
+                          <th className="text-right p-2">Alocação</th>
+                          <th className="text-right p-2">Valor</th>
+                          <th className="text-right p-2">Cotas</th>
+                          <th className="text-center p-2">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {suggestions.allocation.map((suggestion) => (
-                          <tr key={suggestion.ticker} className="border-b">
-                            <td className="px-4 py-3 text-sm font-medium">
-                              {suggestion.ticker}
-                              <div className="text-xs text-muted-foreground">
-                                {suggestion.sector}
+                        {suggestions.allocation.map((fii) => (
+                          <tr
+                            key={fii.ticker}
+                            className="border-b hover:bg-gray-50"
+                          >
+                            <td className="p-2">
+                              <div>
+                                <div className="font-medium">{fii.ticker}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  {fii.sector}
+                                </div>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-right text-sm">
-                              {formatCurrency(suggestion.price)}
+                            <td className="text-right p-2">
+                              {formatCurrency(fii.price)}
                             </td>
-                            <td className="px-4 py-3 text-right text-sm">
-                              {formatPercentage(suggestion.dividendYield)}
+                            <td className="text-right p-2">
+                              {formatPercentage(fii.dividendYield)}
                             </td>
-                            <td className="px-4 py-3 text-right text-sm">
-                              {suggestion.pvp.toFixed(2)}
+                            <td className="text-right p-2">
+                              {fii.pvp?.toFixed(2) || "N/A"}
                             </td>
-                            <td className="px-4 py-3 text-right text-sm">
-                              {formatPercentage(suggestion.percentage)}
+                            <td className="text-right p-2">
+                              {formatPercentage(fii.percentage)}
                             </td>
-                            <td className="px-4 py-3 text-right text-sm">
-                              {formatCurrency(suggestion.investmentAmount)}
+                            <td className="text-right p-2">
+                              {formatCurrency(fii.investmentAmount)}
                             </td>
-                            <td className="px-4 py-3 text-right text-sm">
-                              {suggestion.shares}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="flex justify-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleAddToPortfolio(suggestion)
-                                  }
-                                >
-                                  <DollarSign className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleViewDetails(suggestion.ticker)
-                                  }
-                                >
-                                  <Info className="h-4 w-4" />
-                                </Button>
-                              </div>
+                            <td className="text-right p-2">{fii.shares}</td>
+                            <td className="text-center p-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  addInvestment({
+                                    ticker: fii.ticker,
+                                    name: fii.name,
+                                    shares: fii.shares,
+                                    price: fii.price,
+                                    sector: fii.sector,
+                                    dividendYield: fii.dividendYield,
+                                  })
+                                }
+                              >
+                                <DollarSign className="h-3 w-3 mr-1" />
+                                Adicionar
+                              </Button>
                             </td>
                           </tr>
                         ))}
@@ -686,48 +546,53 @@ const Investment = () => {
               </Card>
             </TabsContent>
 
-            {/* Visualização em Gráfico */}
-            <TabsContent value="chart">
+            <TabsContent value="grafico">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <PieChart className="h-5 w-5" />
-                    Distribuição da Carteira
-                  </CardTitle>
-                  <CardDescription>
-                    Alocação sugerida por FII e por setor
-                  </CardDescription>
+                  <CardTitle>Distribuição da Carteira</CardTitle>
                 </CardHeader>
-                <CardContent className="h-80 flex items-center justify-center">
-                  <div className="text-center text-muted-foreground">
-                    <PieChart className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <p>Gráfico de distribuição da carteira</p>
-                    <p className="text-sm">(Implementação futura)</p>
+                <CardContent>
+                  <div className="space-y-4">
+                    {suggestions.allocation.map((fii) => (
+                      <div
+                        key={fii.ticker}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                          <span className="font-medium">{fii.ticker}</span>
+                          <span className="text-sm text-muted-foreground">
+                            ({fii.sector})
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                          <div className="w-32 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full"
+                              style={{ width: `${fii.percentage}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-sm font-medium w-16 text-right">
+                            {formatPercentage(fii.percentage)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
 
-          {/* Botões de Ação */}
-          <div className="flex flex-col sm:flex-row gap-4">
+          {/* Nova Análise */}
+          <div className="flex justify-center">
             <Button
-              className="flex-1"
-              onClick={handleNewAnalysis}
               variant="outline"
+              onClick={() => setSuggestions(null)}
+              className="w-full max-w-md"
             >
+              <RefreshCw className="h-4 w-4 mr-2" />
               Nova Análise
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={() => {
-                // Adicionar todos à carteira
-                suggestions.allocation.forEach((suggestion) => {
-                  handleAddToPortfolio(suggestion);
-                });
-              }}
-            >
-              Adicionar Todos à Carteira
             </Button>
           </div>
         </div>

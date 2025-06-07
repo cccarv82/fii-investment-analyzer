@@ -34,15 +34,8 @@ import {
 import { useAI } from "../contexts/AIContext";
 
 const Settings = () => {
-  const {
-    apiKey,
-    isConfigured,
-    loading,
-    error,
-    configureApiKey,
-    removeApiKey,
-    clearError,
-  } = useAI();
+  // 🎯 Usando as funções CORRETAS do AIContext
+  const { isConfigured, setApiKey, removeApiKey, getApiKey } = useAI();
 
   const [newApiKey, setNewApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
@@ -50,6 +43,7 @@ const Settings = () => {
   const [isRemoving, setIsRemoving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Limpar mensagens após 3 segundos
   useEffect(() => {
@@ -59,58 +53,72 @@ const Settings = () => {
     }
   }, [successMessage]);
 
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => setErrorMessage(""), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage]);
+
   // Validar formato da API key
   const isValidApiKey = (key) => {
     return key && key.startsWith("sk-") && key.length >= 20;
   };
 
+  // 🔧 Função CORRIGIDA para configurar API key
   const handleConfigureApiKey = async (e) => {
     e.preventDefault();
 
     if (!newApiKey.trim()) {
+      setErrorMessage("Por favor, insira uma API key válida.");
       return;
     }
 
     if (!isValidApiKey(newApiKey.trim())) {
-      setSuccessMessage("");
+      setErrorMessage(
+        "API key deve começar com 'sk-' e ter pelo menos 20 caracteres."
+      );
       return;
     }
 
     setIsSaving(true);
-    clearError();
+    setErrorMessage("");
 
     try {
-      const success = await configureApiKey(newApiKey.trim());
-      if (success) {
-        setNewApiKey("");
-        setShowNewApiKey(false);
-        setSuccessMessage("API Key configurada com sucesso!");
-      }
+      // 🎯 Usando setApiKey (função correta)
+      setApiKey(newApiKey.trim());
+
+      setNewApiKey("");
+      setShowNewApiKey(false);
+      setSuccessMessage("API Key configurada com sucesso!");
     } catch (err) {
       console.error("Erro ao configurar API key:", err);
+      setErrorMessage("Erro ao configurar API key. Tente novamente.");
     } finally {
       setIsSaving(false);
     }
   };
 
+  // 🔧 Função CORRIGIDA para remover API key
   const handleRemoveApiKey = async () => {
     const confirmed = window.confirm(
-      "Tem certeza que deseja remover a API key?\n\nAs análises com IA serão desabilitadas e você voltará ao modo demo."
+      "Tem certeza que deseja remover a API key?\n\nAs análises com IA serão desabilitadas."
     );
 
     if (!confirmed) return;
 
     setIsRemoving(true);
-    clearError();
+    setErrorMessage("");
 
     try {
-      const success = await removeApiKey();
-      if (success) {
-        setSuccessMessage("API Key removida com sucesso!");
-        setShowApiKey(false);
-      }
+      // 🎯 Usando removeApiKey (função correta)
+      removeApiKey();
+
+      setSuccessMessage("API Key removida com sucesso!");
+      setShowApiKey(false);
     } catch (err) {
       console.error("Erro ao remover API key:", err);
+      setErrorMessage("Erro ao remover API key. Tente novamente.");
     } finally {
       setIsRemoving(false);
     }
@@ -119,12 +127,13 @@ const Settings = () => {
   const handleClearForm = () => {
     setNewApiKey("");
     setShowNewApiKey(false);
-    clearError();
+    setErrorMessage("");
     setSuccessMessage("");
   };
 
-  // Mascarar API key para exibição
+  // 🔧 Função CORRIGIDA para mascarar API key
   const getMaskedApiKey = () => {
+    const apiKey = getApiKey();
     if (!apiKey || apiKey.length < 8) return "";
     return `${apiKey.substring(0, 7)}${"•".repeat(20)}${apiKey.substring(
       apiKey.length - 4
@@ -132,6 +141,7 @@ const Settings = () => {
   };
 
   const maskedApiKey = getMaskedApiKey();
+  const currentApiKey = getApiKey();
 
   return (
     <div className="space-y-6">
@@ -153,13 +163,17 @@ const Settings = () => {
         </Alert>
       )}
 
-      {/* Erro */}
-      {error && (
+      {/* Mensagem de Erro */}
+      {errorMessage && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
-            {error}
-            <Button variant="ghost" size="sm" onClick={clearError}>
+            {errorMessage}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setErrorMessage("")}
+            >
               Fechar
             </Button>
           </AlertDescription>
@@ -233,7 +247,7 @@ const Settings = () => {
                     <div className="flex items-center gap-2 mt-2">
                       <Input
                         type={showApiKey ? "text" : "password"}
-                        value={showApiKey ? apiKey : maskedApiKey}
+                        value={showApiKey ? currentApiKey : maskedApiKey}
                         readOnly
                         className="flex-1 bg-gray-50"
                       />
@@ -301,28 +315,30 @@ const Settings = () => {
                         )}
                       </Button>
                     </div>
-
-                    {/* Validação visual */}
-                    {newApiKey && (
-                      <div className="mt-1">
-                        {isValidApiKey(newApiKey) ? (
-                          <p className="text-xs text-green-600 flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            Formato válido
-                          </p>
-                        ) : (
-                          <p className="text-xs text-red-600 flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            Deve começar com 'sk-' e ter pelo menos 20
-                            caracteres
-                          </p>
-                        )}
-                      </div>
-                    )}
-
+                    <div className="flex items-center gap-2 mt-2">
+                      {newApiKey && (
+                        <div className="flex items-center gap-1">
+                          {isValidApiKey(newApiKey) ? (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-red-500" />
+                          )}
+                          <span
+                            className={`text-xs ${
+                              isValidApiKey(newApiKey)
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {isValidApiKey(newApiKey)
+                              ? "Formato válido"
+                              : "Formato inválido"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Sua API key é armazenada localmente e nunca enviada para
-                      nossos servidores
+                      Sua API key será armazenada localmente no navegador
                     </p>
                   </div>
 
@@ -339,108 +355,46 @@ const Settings = () => {
                       )}
                       {isSaving ? "Configurando..." : "Configurar IA"}
                     </Button>
-
-                    {newApiKey && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleClearForm}
-                      >
-                        Limpar
-                      </Button>
-                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleClearForm}
+                    >
+                      Limpar
+                    </Button>
                   </div>
                 </form>
               )}
 
-              {/* Informações sobre a IA */}
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
+              {/* Informações sobre a OpenAI */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Info className="h-5 w-5 text-blue-600 mt-0.5" />
                   <div className="space-y-2">
-                    <p className="font-medium">
-                      Como funciona a análise com IA:
+                    <p className="text-sm font-medium text-blue-900">
+                      Como obter sua API Key da OpenAI
                     </p>
-                    <ul className="text-sm space-y-1 ml-4">
-                      <li>• Análise fundamentalista detalhada de cada FII</li>
-                      <li>
-                        • Recomendações personalizadas baseadas no seu perfil
-                      </li>
-                      <li>• Justificativas técnicas para cada sugestão</li>
-                      <li>• Análise de mercado e tendências setoriais</li>
-                      <li>
-                        • Estratégias baseadas em Warren Buffett e Ray Dalio
-                      </li>
-                    </ul>
-                    <div className="flex items-center gap-2 mt-3">
-                      <Button variant="outline" size="sm" asChild>
-                        <a
-                          href="https://platform.openai.com/api-keys"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1"
-                        >
-                          Obter API Key
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </Button>
-                    </div>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
-
-          {/* Recursos da IA */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Recursos Disponíveis
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex items-start gap-3 p-3 border rounded-lg">
-                  <Brain className="h-5 w-5 text-blue-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">Análise Fundamentalista</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Avaliação detalhada de P/VP, DY, qualidade dos ativos e
-                      gestão
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-3 border rounded-lg">
-                  <Shield className="h-5 w-5 text-green-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">Análise de Risco</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Avaliação de volatilidade, correlação e diversificação
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-3 border rounded-lg">
-                  <Zap className="h-5 w-5 text-purple-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">
-                      Recomendações Personalizadas
-                    </h4>
-                    <p className="text-sm text-muted-foreground">
-                      Sugestões baseadas no seu perfil de risco e objetivos
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-3 border rounded-lg">
-                  <Key className="h-5 w-5 text-orange-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium">Análise Setorial</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Tendências e oportunidades por setor imobiliário
-                    </p>
+                    <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                      <li>Acesse platform.openai.com/api-keys</li>
+                      <li>Faça login na sua conta OpenAI</li>
+                      <li>Clique em "Create new secret key"</li>
+                      <li>Copie a chave (começa com sk-)</li>
+                      <li>Cole aqui e configure</li>
+                    </ol>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() =>
+                        window.open(
+                          "https://platform.openai.com/api-keys",
+                          "_blank"
+                        )
+                      }
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Abrir OpenAI Platform
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -452,16 +406,19 @@ const Settings = () => {
         <TabsContent value="preferences" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Preferências Gerais</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Preferências Gerais
+              </CardTitle>
               <CardDescription>
                 Configure suas preferências de uso da aplicação
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
+            <CardContent className="space-y-4">
+              <div className="text-sm text-muted-foreground">
                 Funcionalidades de preferências serão implementadas em versões
                 futuras.
-              </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -470,32 +427,36 @@ const Settings = () => {
         <TabsContent value="about" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Sobre o FII Investment Analyzer</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Sobre o FII Investment Analyzer
+              </CardTitle>
               <CardDescription>
                 Informações sobre a aplicação e tecnologias utilizadas
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Tecnologias</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• React 18.3.1 + Vite</li>
-                  <li>• Tailwind CSS + Shadcn/UI</li>
-                  <li>• OpenAI GPT-4 para análises</li>
-                  <li>• BRAPI para dados da B3</li>
-                  <li>• IndexedDB para persistência local</li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Funcionalidades</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Análise fundamentalista com IA</li>
-                  <li>• Gestão completa de carteira</li>
-                  <li>• Simulações e projeções</li>
-                  <li>• Dados reais da B3</li>
-                  <li>• Interface responsiva</li>
-                </ul>
+              <div className="space-y-3">
+                <div>
+                  <h4 className="font-medium">Versão</h4>
+                  <p className="text-sm text-muted-foreground">1.0.0</p>
+                </div>
+                <div>
+                  <h4 className="font-medium">Tecnologias</h4>
+                  <p className="text-sm text-muted-foreground">
+                    React, Vite, Tailwind CSS, OpenAI GPT-4, BRAPI
+                  </p>
+                </div>
+                <div>
+                  <h4 className="font-medium">Funcionalidades</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• Análise fundamentalista com IA</li>
+                    <li>• Gestão completa de carteira</li>
+                    <li>• Dados reais da B3 via BRAPI</li>
+                    <li>• Simulações e projeções</li>
+                    <li>• Gráficos interativos</li>
+                  </ul>
+                </div>
               </div>
             </CardContent>
           </Card>

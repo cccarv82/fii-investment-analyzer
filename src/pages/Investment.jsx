@@ -59,7 +59,6 @@ const Investment = () => {
         sector: sample.sector,
         marketCap: sample.marketCap,
         qualityScore: sample.qualityScore,
-        allKeys: Object.keys(sample),
       });
 
       // Estatísticas rápidas
@@ -69,12 +68,9 @@ const Investment = () => {
       ).length;
       const withPVP = fiis.filter((f) => f.pvp && f.pvp > 0).length;
       const withSector = fiis.filter((f) => f.sector).length;
-      const withScore = fiis.filter(
-        (f) => f.qualityScore && f.qualityScore > 0
-      ).length;
 
       console.log(
-        `Estatísticas: price=${withPrice}, DY=${withDY}, PVP=${withPVP}, sector=${withSector}, score=${withScore}`
+        `Estatísticas: price=${withPrice}, DY=${withDY}, PVP=${withPVP}, sector=${withSector}`
       );
 
       // Top 5 por score
@@ -91,6 +87,51 @@ const Investment = () => {
           }%, P/VP ${fii.pvp}`
         );
       });
+
+      // 🔍 DEBUG DETALHADO DOS FILTROS
+      if (step === "APÓS FILTROS DE PERFIL" && fiis.length === 0) {
+        console.log("\n🚨 INVESTIGANDO POR QUE 0 FIIs PASSARAM:");
+        console.log("Vamos testar alguns FIIs manualmente...");
+
+        // Pegar alguns FIIs dos 100 melhores para testar
+        const testFIIs = [
+          {
+            ticker: "MXRF11",
+            dividendYield: 9.5,
+            pvp: 1.15,
+            sector: "Recebíveis",
+            marketCap: 500000000,
+          },
+          {
+            ticker: "SARE11",
+            dividendYield: 7.2,
+            pvp: 0.95,
+            sector: "Recebíveis",
+            marketCap: 300000000,
+          },
+          {
+            ticker: "KNSC11",
+            dividendYield: 9.5,
+            pvp: 1.15,
+            sector: "Recebíveis",
+            marketCap: 200000000,
+          },
+        ];
+
+        testFIIs.forEach((fii) => {
+          console.log(`\n🧪 TESTE ${fii.ticker}:`);
+          console.log(
+            `   DY: ${fii.dividendYield}% (≥3? ${fii.dividendYield >= 3})`
+          );
+          console.log(`   P/VP: ${fii.pvp} (≤2.0? ${fii.pvp <= 2.0})`);
+          console.log(
+            `   Market Cap: ${fii.marketCap} (≥50M? ${
+              (fii.marketCap || 0) >= 50000000
+            })`
+          );
+          console.log(`   Setor: ${fii.sector}`);
+        });
+      }
     }
   };
 
@@ -151,27 +192,23 @@ const Investment = () => {
         );
       }
 
-      // 3. 🔧 FILTRAR POR PERFIL DO USUÁRIO (dos 100 melhores) - FILTROS FLEXIBILIZADOS
+      // 3. 🔧 PULAR FILTROS DE PERFIL - USAR DIRETO OS 100 MELHORES
       setLoadingProgress(45);
-      setLoadingMessage("Aplicando filtros personalizados do seu perfil...");
-
-      const profileFilteredFIIs = filterFIIsByProfileFlexible(
-        bestFIIs,
-        formData
+      setLoadingMessage(
+        "Usando os 100 melhores FIIs diretamente (sem filtros restritivos)..."
       );
+
       console.log(
-        `🎯 ${profileFilteredFIIs.length} FIIs após filtros de perfil`
+        "🎯 PULANDO FILTROS DE PERFIL - usando os 100 melhores diretamente"
       );
-      debugFIIData(profileFilteredFIIs, "APÓS FILTROS DE PERFIL");
+      const finalFIIsForAI = bestFIIs.slice(0, 60); // Usar 60 melhores para IA
 
-      // 🔧 GARANTIR MÍNIMO PARA IA
-      let finalFIIsForAI = profileFilteredFIIs;
-      if (profileFilteredFIIs.length < 30) {
-        console.log("⚠️ Poucos FIIs após filtros, usando os 80 melhores");
-        finalFIIsForAI = bestFIIs.slice(0, 80);
-      }
+      console.log(
+        `🎯 ${finalFIIsForAI.length} FIIs selecionados para IA (sem filtros restritivos)`
+      );
+      debugFIIData(finalFIIsForAI, "FINAL PARA IA (SEM FILTROS)");
 
-      // 4. 🤖 USAR IA SUPREMA (PROMPT PICA DAS GALÁXIAS)
+      // 4. 🤖 USAR IA SUPREMA (PROMPT OTIMIZADO)
       setLoadingProgress(60);
       setLoadingMessage(
         "Analisando com IA SUPREMA (Warren Buffett + Ray Dalio + Peter Lynch)..."
@@ -185,15 +222,15 @@ const Investment = () => {
         investmentAmount: formData.amount,
       };
 
-      // 🔧 DADOS OTIMIZADOS: Enviar apenas dados essenciais para IA
-      const optimizedFIIs = finalFIIsForAI.slice(0, 100).map((fii) => ({
+      // 🔧 DADOS OTIMIZADOS: Enviar apenas dados essenciais para IA (REDUZIDO)
+      const optimizedFIIs = finalFIIsForAI.slice(0, 40).map((fii) => ({
+        // Reduzido de 60 para 40
         ticker: fii.ticker,
         name: fii.name,
         price: fii.price,
         dividendYield: fii.dividendYield,
         pvp: fii.pvp,
         sector: fii.sector,
-        marketCap: fii.marketCap,
         qualityScore: fii.qualityScore,
       }));
 
@@ -260,93 +297,6 @@ const Investment = () => {
       setLoadingProgress(0);
       setLoadingMessage("");
     }
-  };
-
-  // 🔧 FILTROS FLEXIBILIZADOS POR PERFIL DO USUÁRIO
-  const filterFIIsByProfileFlexible = (bestFIIs, formData) => {
-    console.log(
-      `\n🎯 APLICANDO FILTROS FLEXÍVEIS PARA PERFIL: ${formData.riskProfile}`
-    );
-    console.log(`📋 OBJETIVO: ${formData.investmentGoal}`);
-    console.log(`⏰ PRAZO: ${formData.timeHorizon}`);
-
-    let filtered = [...bestFIIs];
-
-    // 1. Filtros por PERFIL DE RISCO (FLEXIBILIZADOS)
-    if (formData.riskProfile === "conservador") {
-      filtered = filtered.filter((fii) => {
-        return (
-          fii.dividendYield >= 5 && // DY reduzido de 7% para 5%
-          fii.pvp <= 1.3 && // P/VP aumentado de 1.1 para 1.3
-          [
-            "Logística",
-            "Corporativo",
-            "Recebíveis",
-            "Shopping",
-            "Industrial",
-          ].includes(fii.sector) && // Mais setores
-          (fii.marketCap || 0) >= 200000000 // Market cap reduzido de 300M para 200M
-        );
-      });
-    } else if (formData.riskProfile === "moderado") {
-      filtered = filtered.filter((fii) => {
-        return (
-          fii.dividendYield >= 4 && // DY reduzido de 5% para 4%
-          fii.pvp <= 1.5 && // P/VP aumentado de 1.4 para 1.5
-          (fii.marketCap || 0) >= 100000000 // Market cap reduzido de 150M para 100M
-        );
-      });
-    } else if (formData.riskProfile === "arrojado") {
-      filtered = filtered.filter((fii) => {
-        return (
-          fii.dividendYield >= 3 && // DY reduzido de 4% para 3%
-          fii.pvp <= 2.0 && // P/VP aumentado de 1.8 para 2.0
-          (fii.marketCap || 0) >= 50000000 // Market cap reduzido de 50M para 50M
-        );
-      });
-    }
-
-    console.log(
-      `✅ Após filtros de risco (${formData.riskProfile}): ${filtered.length} FIIs`
-    );
-
-    // 2. Filtros por OBJETIVO (FLEXIBILIZADOS)
-    if (formData.investmentGoal === "renda") {
-      filtered = filtered.filter((fii) => fii.dividendYield >= 4); // Reduzido de 7% para 4%
-    } else if (formData.investmentGoal === "crescimento") {
-      filtered = filtered.filter((fii) =>
-        [
-          "Logística",
-          "Agronegócio",
-          "Industrial",
-          "Data Center",
-          "Educacional",
-        ].includes(fii.sector)
-      );
-    }
-
-    console.log(
-      `✅ Após filtros de objetivo (${formData.investmentGoal}): ${filtered.length} FIIs`
-    );
-
-    // 3. Filtros por PRAZO (FLEXIBILIZADOS)
-    if (formData.timeHorizon === "curto") {
-      filtered = filtered.filter(
-        (fii) =>
-          fii.dividendYield >= 4 && // Reduzido de 8% para 4%
-          ["Recebíveis", "Logística", "Corporativo"].includes(fii.sector)
-      );
-    } else if (formData.timeHorizon === "medio") {
-      // Sem filtros adicionais para médio prazo
-    } else if (formData.timeHorizon === "longo") {
-      // Sem filtros adicionais para longo prazo
-    }
-
-    console.log(
-      `✅ Após filtros de prazo (${formData.timeHorizon}): ${filtered.length} FIIs`
-    );
-
-    return filtered;
   };
 
   // 🔧 VALIDAR E CALCULAR ALOCAÇÕES CORRETAS
@@ -425,7 +375,6 @@ const Investment = () => {
         purchaseDate: new Date().toISOString().split("T")[0],
       });
 
-      // Feedback visual ou notificação aqui
       console.log(`✅ ${suggestion.ticker} adicionado à carteira`);
     } catch (error) {
       console.error("❌ Erro ao adicionar à carteira:", error);

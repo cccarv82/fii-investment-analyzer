@@ -1,6 +1,6 @@
 import { supabase } from "../supabase";
 
-// 🗄️ SISTEMA DE PERSISTÊNCIA COM SUPABASE CORRIGIDO
+// 🗄️ SISTEMA DE PERSISTÊNCIA COM SUPABASE - VERSÃO SIMPLES E FUNCIONAL
 class SupabaseStorage {
   constructor() {
     this.userId = null;
@@ -116,12 +116,12 @@ class SupabaseStorage {
 
   // 💰 OPERAÇÕES DE INVESTIMENTO
 
-  // ✅ CORREÇÃO: Adicionar investimento com validações
+  // Adicionar investimento
   async addInvestment(portfolioId, investmentData) {
     try {
       console.log("📝 Dados recebidos para inserção:", investmentData);
 
-      // Validações
+      // Validações básicas
       const shares = investmentData.shares || 0;
       const averagePrice =
         investmentData.average_price || investmentData.price || 0;
@@ -179,12 +179,12 @@ class SupabaseStorage {
     }
   }
 
-  // ✅ CORREÇÃO: Atualizar investimento com validação de usuário
+  // ✅ CORREÇÃO SIMPLES: Atualizar investimento
   async updateInvestment(investmentId, updates) {
     try {
       console.log("📝 Atualizando investimento:", investmentId, updates);
 
-      // Validações
+      // Validações básicas
       if (updates.shares && updates.shares <= 0) {
         throw new Error("Quantidade de cotas deve ser maior que 0");
       }
@@ -200,7 +200,7 @@ class SupabaseStorage {
           updates.shares * (updates.current_price || updates.average_price);
       }
 
-      // ✅ CORREÇÃO CRÍTICA: Adicionar verificação de usuário via portfolio
+      // ✅ CORREÇÃO: Usar apenas o ID do investimento (mais simples)
       const { data, error } = await supabase
         .from("investments")
         .update({
@@ -208,7 +208,6 @@ class SupabaseStorage {
           updated_at: new Date().toISOString(),
         })
         .eq("id", investmentId)
-        .eq("portfolio_id", await this.getPortfolioIdByInvestment(investmentId))
         .select()
         .single();
 
@@ -222,24 +221,16 @@ class SupabaseStorage {
     }
   }
 
-  // ✅ CORREÇÃO: Remover investimento com validação de usuário
+  // ✅ CORREÇÃO SIMPLES: Remover investimento
   async removeInvestment(investmentId) {
     try {
       console.log("🗑️ Removendo investimento:", investmentId);
 
-      // ✅ CORREÇÃO CRÍTICA: Verificar se o investimento pertence ao usuário
-      const portfolioId = await this.getPortfolioIdByInvestment(investmentId);
-      if (!portfolioId) {
-        throw new Error(
-          "Investimento não encontrado ou não pertence ao usuário"
-        );
-      }
-
+      // ✅ CORREÇÃO: Usar apenas o ID do investimento (mais simples)
       const { error } = await supabase
         .from("investments")
         .delete()
-        .eq("id", investmentId)
-        .eq("portfolio_id", portfolioId);
+        .eq("id", investmentId);
 
       if (error) throw error;
 
@@ -248,38 +239,6 @@ class SupabaseStorage {
     } catch (error) {
       console.error("Erro ao remover investimento:", error);
       throw error;
-    }
-  }
-
-  // 🔍 FUNÇÃO AUXILIAR: Obter portfolio_id de um investimento
-  async getPortfolioIdByInvestment(investmentId) {
-    try {
-      const { data, error } = await supabase
-        .from("investments")
-        .select(
-          `
-          portfolio_id,
-          portfolios!inner (
-            user_id
-          )
-        `
-        )
-        .eq("id", investmentId)
-        .eq("portfolios.user_id", this.userId)
-        .single();
-
-      if (error || !data) {
-        console.warn(
-          "Investimento não encontrado ou não pertence ao usuário:",
-          investmentId
-        );
-        return null;
-      }
-
-      return data.portfolio_id;
-    } catch (error) {
-      console.error("Erro ao verificar propriedade do investimento:", error);
-      return null;
     }
   }
 

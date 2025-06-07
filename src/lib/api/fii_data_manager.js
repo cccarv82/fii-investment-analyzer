@@ -727,10 +727,11 @@ class FIIDataManager {
           )}: ${batch.join(", ")}`
         );
 
+        // 🔧 MÉTODO HÍBRIDO INTELIGENTE: Usar range=1y para buscar histórico completo
         const data = await this.makeRequest(`/quote/${batch.join(",")}`, {
-          fundamental: "true",
+          modules: "defaultKeyStatistics",
           dividends: "true",
-          range: "1mo",
+          range: "1y", // 🚀 MUDANÇA: De 1mo para 1y para capturar 12 meses de dividendos
         });
 
         if (data && data.results) {
@@ -781,44 +782,216 @@ class FIIDataManager {
 
       console.log(`💰 ${rawData.symbol}: R$ ${price.toFixed(2)} (BRAPI)`);
 
+      // 🔍 DEBUG: Log completo dos dados recebidos para investigação
+      console.log(`🔍 [${rawData.symbol}] DADOS BRAPI COMPLETOS:`, {
+        symbol: rawData.symbol,
+        price: price,
+        dividendsData: rawData.dividendsData ? {
+          hasCashDividends: !!rawData.dividendsData.cashDividends,
+          dividendsCount: rawData.dividendsData.cashDividends?.length || 0,
+          firstDividend: rawData.dividendsData.cashDividends?.[0],
+          lastDividend: rawData.dividendsData.cashDividends?.[rawData.dividendsData.cashDividends.length - 1]
+        } : null,
+        fundamentalData: rawData.fundamentalData ? {
+          hasDividendYield: !!rawData.fundamentalData.dividendYield,
+          dividendYield: rawData.fundamentalData.dividendYield,
+          bookValue: rawData.fundamentalData.bookValue,
+          sharesOutstanding: rawData.fundamentalData.sharesOutstanding
+        } : null
+      });
+
       // Calcular dividend yield
       let dividendYield = 0;
+      let dyMethod = "NENHUM";
 
       if (price > 0) {
-        // Método 1: Dividendos dos últimos 12 meses
+        // 🚀 MÉTODO 1 HÍBRIDO INTELIGENTE: Dividendos históricos vs projeção
         if (rawData.dividendsData && rawData.dividendsData.cashDividends) {
-          const now = new Date();
-          const oneYearAgo = new Date(
-            now.getFullYear() - 1,
-            now.getMonth(),
-            now.getDate()
-          );
+          console.log(`🔍 [${rawData.symbol}] MÉTODO 1 HÍBRIDO: Analisando dividendos históricos...`);
+          
+          const dividends = rawData.dividendsData.cashDividends;
+          console.log(`   Total dividendos disponíveis: ${dividends.length}`);
+          
+          if (dividends.length > 0) {
+            const now = new Date();
+            const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
 
-          const recentDividends = rawData.dividendsData.cashDividends.filter(
-            (div) => {
+            // 🔧 Filtrar dividendos válidos dos últimos 12 meses
+            const recentDividends = dividends.filter((div) => {
               const divDate = new Date(div.paymentDate || div.date);
+              const rate = parseFloat(div.rate) || 0;
+              
+              // Validar data e valor
+              if (isNaN(divDate.getTime()) || rate <= 0) {
+                console.log(`   ⚠️ Dividendo inválido ignorado: ${div.date} - R$ ${div.rate}`);
+                return false;
+              }
+              
               return divDate >= oneYearAgo;
+            });
+
+            console.log(`🔍 [${rawData.symbol}] Dividendos válidos últimos 12m: ${recentDividends.length}`);
+            
+            // 🎯 LÓGICA HÍBRIDA INTELIGENTE:
+            // Se temos 8+ dividendos → usar soma histórica (mais preciso)
+            // Se temos menos → usar último dividendo × 12 (projeção)
+            const MINIMUM_DIVIDENDS_FOR_HISTORICAL = 8;
+            
+            if (recentDividends.length >= MINIMUM_DIVIDENDS_FOR_HISTORICAL) {
+              // 📊 MÉTODO HISTÓRICO: Somar dividendos reais dos últimos 12 meses
+              const totalDividends = recentDividends.reduce((sum, div) => {
+                const rate = parseFloat(div.rate) || 0;
+                console.log(`   📅 ${div.paymentDate || div.date}: R$ ${rate.toFixed(4)}`);
+                return sum + rate;
+              }, 0);
+              
+              if (totalDividends > 0) {
+                dividendYield = (totalDividends / price) * 100;
+                dyMethod = `HISTÓRICO_${recentDividends.length}M`;
+                
+                console.log(`✅ [${rawData.symbol}] MÉTODO HISTÓRICO USADO:`);
+                console.log(`   📊 ${recentDividends.length} dividendos somados`);
+                console.log(`   💰 Total dividendos 12m: R$ ${totalDividends.toFixed(4)}`);
+                console.log(`   📈 DY histórico: ${dividendYield.toFixed(2)}%`);
+              }
+            } else if (recentDividends.length > 0) {
+              // 🔮 MÉTODO PROJEÇÃO: Usar último dividendo × 12
+              const lastDividend = recentDividends[0]; // Mais recente
+              const rate = parseFloat(lastDividend.rate) || 0;
+              
+              if (rate > 0) {
+                const projectedAnnual = rate * 12;
+                dividendYield = (projectedAnnual / price) * 100;
+                dyMethod = `PROJEÇÃO_${recentDividends.length}M`;
+                
+                console.log(`✅ [${rawData.symbol}] MÉTODO PROJEÇÃO USADO:`);
+                console.log(`   📊 Poucos dividendos (${recentDividends.length}), usando projeção`);
+                console.log(`   📅 Último dividendo: ${lastDividend.paymentDate || lastDividend.date}`);
+                console.log(`   💰 Valor: R$ ${rate.toFixed(4)}`);
+                console.log(`   🔮 Projeção anual: R$ ${projectedAnnual.toFixed(4)}`);
+                console.log(`   📈 DY projetado: ${dividendYield.toFixed(2)}%`);
+              }
             }
-          );
+            
+            if (dividendYield === 0) {
+              console.log(`⚠️ [${rawData.symbol}] MÉTODO 1 FALHOU: Nenhum dividendo válido processado`);
+            }
+          } else {
+            console.log(`⚠️ [${rawData.symbol}] MÉTODO 1 FALHOU: Array de dividendos vazio`);
+          }
+        } else {
+          console.log(`⚠️ [${rawData.symbol}] MÉTODO 1 FALHOU: Sem dados de dividendos na resposta BRAPI`);
+        }
 
-          if (recentDividends.length > 0) {
-            const totalDividends = recentDividends.reduce((sum, div) => {
-              return sum + (parseFloat(div.rate) || 0);
-            }, 0);
-            dividendYield = (totalDividends / price) * 100;
+        // 🔥 MÉTODO 2 NOVO: Usar defaultKeyStatistics.lastDividendValue
+        if (dividendYield === 0 && rawData.defaultKeyStatistics) {
+          console.log(`🔍 [${rawData.symbol}] MÉTODO 2: Tentando defaultKeyStatistics...`);
+          
+          const keyStats = rawData.defaultKeyStatistics;
+          console.log(`   defaultKeyStatistics disponível:`, Object.keys(keyStats));
+          
+          if (keyStats.lastDividendValue !== undefined && keyStats.lastDividendValue !== null) {
+            const lastDividend = parseFloat(keyStats.lastDividendValue);
+            console.log(`   Último dividendo: R$ ${lastDividend}`);
+            console.log(`   Data: ${keyStats.lastDividendDate}`);
+            
+            if (!isNaN(lastDividend) && lastDividend > 0) {
+              // Assumir que é dividendo mensal e calcular DY anual
+              const annualDividends = lastDividend * 12;
+              dividendYield = (annualDividends / price) * 100;
+              dyMethod = "LAST_DIVIDEND_MENSAL";
+              
+              console.log(`✅ [${rawData.symbol}] MÉTODO 2 SUCESSO:`);
+              console.log(`   Último dividendo: R$ ${lastDividend.toFixed(4)}`);
+              console.log(`   Dividendos anuais estimados: R$ ${annualDividends.toFixed(4)}`);
+              console.log(`   Preço atual: R$ ${price.toFixed(2)}`);
+              console.log(`   DY calculado: ${dividendYield.toFixed(2)}%`);
+            } else {
+              console.log(`⚠️ [${rawData.symbol}] MÉTODO 2 FALHOU: lastDividendValue inválido (${lastDividend})`);
+            }
+          } else {
+            console.log(`⚠️ [${rawData.symbol}] MÉTODO 2 FALHOU: Sem lastDividendValue nos defaultKeyStatistics`);
+            console.log(`   Campos disponíveis:`, Object.keys(keyStats));
           }
         }
 
-        // Método 2: Dados fundamentais
+        // 🔥 MÉTODO 3 ANTIGO: Dados fundamentais (mantido como fallback)
         if (dividendYield === 0 && rawData.fundamentalData) {
+          console.log(`🔍 [${rawData.symbol}] MÉTODO 3: Tentando dados fundamentais...`);
+          
           const fundamental = rawData.fundamentalData;
-          if (fundamental.dividendYield) {
-            dividendYield = parseFloat(fundamental.dividendYield) * 100;
+          console.log(`   fundamentalData disponível:`, Object.keys(fundamental));
+          
+          if (fundamental.dividendYield !== undefined && fundamental.dividendYield !== null) {
+            const fundamentalDY = parseFloat(fundamental.dividendYield);
+            console.log(`   DY fundamental bruto: ${fundamental.dividendYield} (parsed: ${fundamentalDY})`);
+            
+            if (!isNaN(fundamentalDY) && fundamentalDY > 0) {
+              // 🔧 CORREÇÃO: Verificar se já está em percentual ou decimal
+              if (fundamentalDY < 1) {
+                // Provavelmente está em decimal (0.095 = 9.5%)
+                dividendYield = fundamentalDY * 100;
+              } else if (fundamentalDY > 1 && fundamentalDY < 100) {
+                // Provavelmente já está em percentual (9.5 = 9.5%)
+                dividendYield = fundamentalDY;
+              } else {
+                // Valor muito alto ou baixo, pode estar incorreto
+                console.log(`   ⚠️ Valor suspeito: ${fundamentalDY}, tentando como decimal`);
+                dividendYield = fundamentalDY < 1 ? fundamentalDY * 100 : fundamentalDY / 100;
+              }
+              
+              dyMethod = "FUNDAMENTAL";
+              
+              console.log(`✅ [${rawData.symbol}] MÉTODO 3 SUCESSO:`);
+              console.log(`   DY fundamental original: ${fundamental.dividendYield}`);
+              console.log(`   DY processado: ${dividendYield.toFixed(2)}%`);
+            } else {
+              console.log(`⚠️ [${rawData.symbol}] MÉTODO 3 FALHOU: DY fundamental inválido (${fundamentalDY})`);
+            }
+          } else {
+            console.log(`⚠️ [${rawData.symbol}] MÉTODO 3 FALHOU: Sem dividendYield nos dados fundamentais`);
+            console.log(`   Campos disponíveis:`, Object.keys(fundamental));
           }
         }
 
-        // Método 3: Estimativa por setor
+        // 🔥 MÉTODO 4 NOVO: Tentar outros campos fundamentais
+        if (dividendYield === 0 && rawData.fundamentalData) {
+          console.log(`🔍 [${rawData.symbol}] MÉTODO 4: Tentando outros campos fundamentais...`);
+          
+          const fundamental = rawData.fundamentalData;
+          
+          // Tentar campos alternativos que podem conter DY
+          const alternativeFields = [
+            'yield', 'dividend_yield', 'dividendYieldTTM', 'trailingAnnualDividendYield',
+            'forwardAnnualDividendYield', 'dividendRate', 'annualDividendRate'
+          ];
+          
+          for (const field of alternativeFields) {
+            if (fundamental[field] !== undefined && fundamental[field] !== null) {
+              const altDY = parseFloat(fundamental[field]);
+              if (!isNaN(altDY) && altDY > 0) {
+                dividendYield = altDY < 1 ? altDY * 100 : altDY;
+                dyMethod = `FUNDAMENTAL_${field.toUpperCase()}`;
+                
+                console.log(`✅ [${rawData.symbol}] MÉTODO 4 SUCESSO:`);
+                console.log(`   Campo usado: ${field}`);
+                console.log(`   Valor: ${fundamental[field]}`);
+                console.log(`   DY final: ${dividendYield.toFixed(2)}%`);
+                break;
+              }
+            }
+          }
+          
+          if (dividendYield === 0) {
+            console.log(`⚠️ [${rawData.symbol}] MÉTODO 4 FALHOU: Nenhum campo alternativo válido`);
+          }
+        }
+
+        // 🚨 MÉTODO 5: Estimativa por setor (ÚLTIMO RECURSO) - AGORA COM AVISO CRÍTICO
         if (dividendYield === 0) {
+          console.log(`🔍 [${rawData.symbol}] MÉTODO 5: Usando estimativa por setor (ÚLTIMO RECURSO)...`);
+          console.warn(`🚨 [${rawData.symbol}] ATENÇÃO: DADOS REAIS NÃO DISPONÍVEIS!`);
+          
           const sector = this.identifySector(rawData.symbol);
           const sectorYields = {
             Logística: 8.5,
@@ -836,7 +1009,24 @@ class FIIDataManager {
             Outros: 7.0,
           };
           dividendYield = sectorYields[sector] || 7.0;
+          dyMethod = `ESTIMATIVA_${sector.toUpperCase()}`;
+          
+          console.log(`⚠️ [${rawData.symbol}] MÉTODO 5 USADO:`);
+          console.log(`   Setor identificado: ${sector}`);
+          console.log(`   DY estimado: ${dividendYield}%`);
+          console.warn(`   🚨 CRÍTICO: Este FII está usando estimativa, não dados reais!`);
+          console.warn(`   🔧 AÇÃO NECESSÁRIA: Verificar por que BRAPI não retorna dados reais`);
         }
+      }
+
+      // 🚨 LOG FINAL DO MÉTODO USADO
+      console.log(`🎯 [${rawData.symbol}] RESULTADO FINAL:`);
+      console.log(`   Método usado: ${dyMethod}`);
+      console.log(`   DY final: ${dividendYield.toFixed(2)}%`);
+      console.log(`   Preço: R$ ${price.toFixed(2)}`);
+      
+      if (dyMethod.startsWith("ESTIMATIVA")) {
+        console.warn(`🚨 [${rawData.symbol}] ALERTA: Usando estimativa em vez de dados reais!`);
       }
 
       const processedFII = {
@@ -850,10 +1040,20 @@ class FIIDataManager {
         volume: this.calculateVolume(rawData),
         lastUpdate: new Date().toISOString(),
 
+        // 🔍 DEBUG: Adicionar método usado para debug
+        _debug: {
+          dyMethod: dyMethod,
+          rawDividendsData: !!rawData.dividendsData,
+          rawFundamentalData: !!rawData.fundamentalData
+        },
+
         // Dados mínimos para otimização
         fundamentalData: {
-          bookValue: rawData.fundamentalData?.bookValue,
-          sharesOutstanding: rawData.fundamentalData?.sharesOutstanding,
+          bookValue: rawData.defaultKeyStatistics?.bookValue || rawData.fundamentalData?.bookValue,
+          sharesOutstanding: rawData.defaultKeyStatistics?.sharesOutstanding || rawData.fundamentalData?.sharesOutstanding,
+          priceToBook: rawData.defaultKeyStatistics?.priceToBook,
+          lastDividendValue: rawData.defaultKeyStatistics?.lastDividendValue,
+          lastDividendDate: rawData.defaultKeyStatistics?.lastDividendDate,
         },
 
         // Métricas para seleção dos melhores
@@ -1087,14 +1287,39 @@ class FIIDataManager {
   // 📊 Calcular P/VP
   calculatePVP(rawData) {
     try {
+      // 🔥 MÉTODO 1 NOVO: Usar defaultKeyStatistics.priceToBook (mais confiável)
+      if (rawData.defaultKeyStatistics && rawData.defaultKeyStatistics.priceToBook !== undefined) {
+        const priceToBook = parseFloat(rawData.defaultKeyStatistics.priceToBook);
+        if (!isNaN(priceToBook) && priceToBook > 0) {
+          console.log(`✅ [${rawData.symbol}] P/VP direto da BRAPI: ${priceToBook.toFixed(2)}`);
+          return Math.round(priceToBook * 100) / 100;
+        }
+      }
+
+      // 🔥 MÉTODO 2: Usar defaultKeyStatistics.bookValue para calcular
+      if (rawData.defaultKeyStatistics && rawData.defaultKeyStatistics.bookValue !== undefined) {
+        const price = parseFloat(rawData.regularMarketPrice) || 0;
+        const bookValue = parseFloat(rawData.defaultKeyStatistics.bookValue);
+        
+        if (price > 0 && !isNaN(bookValue) && bookValue > 0) {
+          const calculatedPVP = price / bookValue;
+          console.log(`✅ [${rawData.symbol}] P/VP calculado: R$ ${price.toFixed(2)} ÷ R$ ${bookValue.toFixed(2)} = ${calculatedPVP.toFixed(2)}`);
+          return Math.round(calculatedPVP * 100) / 100;
+        }
+      }
+
+      // 🔥 MÉTODO 3: Fallback para fundamentalData (antigo)
       const price = parseFloat(rawData.regularMarketPrice) || 0;
       const bookValue = parseFloat(rawData.fundamentalData?.bookValue) || 0;
 
       if (price > 0 && bookValue > 0) {
-        return Math.round((price / bookValue) * 100) / 100;
+        const fallbackPVP = price / bookValue;
+        console.log(`⚠️ [${rawData.symbol}] P/VP fallback: ${fallbackPVP.toFixed(2)}`);
+        return Math.round(fallbackPVP * 100) / 100;
       }
 
-      // Fallback por setor
+      // 🚨 MÉTODO 4: Fallback por setor (último recurso)
+      console.warn(`⚠️ [${rawData.symbol}] Usando P/VP estimado por setor`);
       const sector = this.identifySector(rawData.symbol);
       const sectorPVPs = {
         Logística: 1.05,
@@ -1114,6 +1339,7 @@ class FIIDataManager {
 
       return sectorPVPs[sector] || 1.0;
     } catch (error) {
+      console.error(`❌ Erro ao calcular P/VP para ${rawData?.symbol}:`, error);
       return 1.0;
     }
   }
@@ -1122,15 +1348,29 @@ class FIIDataManager {
   calculateMarketCap(rawData) {
     try {
       const price = parseFloat(rawData.regularMarketPrice) || 0;
-      const shares =
-        parseFloat(rawData.fundamentalData?.sharesOutstanding) || 0;
-
-      if (price > 0 && shares > 0) {
-        return Math.round(price * shares);
+      
+      // 🔥 MÉTODO 1 NOVO: Usar defaultKeyStatistics.sharesOutstanding
+      if (rawData.defaultKeyStatistics && rawData.defaultKeyStatistics.sharesOutstanding !== undefined) {
+        const shares = parseFloat(rawData.defaultKeyStatistics.sharesOutstanding);
+        if (price > 0 && !isNaN(shares) && shares > 0) {
+          const marketCap = Math.round(price * shares);
+          console.log(`✅ [${rawData.symbol}] Market Cap: R$ ${price.toFixed(2)} × ${shares.toLocaleString()} = R$ ${marketCap.toLocaleString()}`);
+          return marketCap;
+        }
       }
 
+      // 🔥 MÉTODO 2: Fallback para fundamentalData (antigo)
+      const shares = parseFloat(rawData.fundamentalData?.sharesOutstanding) || 0;
+      if (price > 0 && shares > 0) {
+        const fallbackMarketCap = Math.round(price * shares);
+        console.log(`⚠️ [${rawData.symbol}] Market Cap fallback: R$ ${fallbackMarketCap.toLocaleString()}`);
+        return fallbackMarketCap;
+      }
+
+      console.warn(`⚠️ [${rawData.symbol}] Market Cap não disponível`);
       return null;
     } catch (error) {
+      console.error(`❌ Erro ao calcular Market Cap para ${rawData?.symbol}:`, error);
       return null;
     }
   }

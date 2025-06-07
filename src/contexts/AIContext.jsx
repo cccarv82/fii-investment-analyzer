@@ -1,66 +1,76 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "../lib/supabase";
+import Anthropic from '@anthropic-ai/sdk';
+import { testBRAPIData } from '../lib/api/test_brapi_data';
+import { debugDY } from '../lib/api/debug_dy_browser';
+import { testBRAPIRangeOptions } from '../lib/api/test_brapi_range';
+import { testHybridMethod } from '../lib/api/test_hybrid_method';
 
-// 🎯 Contexto da IA com integração completa ao Supabase
+// 🎯 Contexto da IA com integração exclusiva ao Claude
 const AIContext = createContext();
 
-// 🤖 Classe para gerenciar IA da OpenAI com PROMPTS OTIMIZADOS
-class OpenAIManager {
+// 🤖 Classe para gerenciar IA do Claude (Anthropic)
+class ClaudeManager {
   constructor() {
     this.apiKey = null;
-    this.baseURL = "https://api.openai.com/v1";
-    this.model = "gpt-4";
+    this.model = "claude-opus-4-20250514"; // ✅ Modelo correto especificado
+    this.anthropic = null;
   }
 
   setApiKey(key) {
     this.apiKey = key;
+    if (key) {
+      this.anthropic = new Anthropic({
+        apiKey: key,
+        dangerouslyAllowBrowser: true // ✅ Necessário para uso no browser
+      });
+    } else {
+      this.anthropic = null;
+    }
   }
 
   getApiKey() {
     return this.apiKey;
   }
 
-  // 🚀 Fazer requisição para OpenAI com tratamento robusto
-  async makeRequest(messages, temperature = 0.1) {
-    if (!this.getApiKey()) {
-      throw new Error("API key da OpenAI não configurada");
+  // 🚀 Fazer requisição para Claude com SDK oficial
+  async makeRequest(messages, temperature = 0.1, systemPrompt = "") {
+    if (!this.apiKey) {
+      throw new Error("API key do Claude não configurada");
     }
 
-    const response = await fetch(`${this.baseURL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.getApiKey()}`,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: messages,
-        temperature: temperature,
-        max_tokens: 3000, // Reduzido de 4000 para 3000
-        top_p: 0.9,
-        frequency_penalty: 0.1,
-        presence_penalty: 0.1,
-      }),
-    });
+    try {
+      const requestParams = {
+        model: "claude-opus-4-20250514",
+        max_tokens: 8000, // Aumentado de 4000 para 8000
+        temperature,
+        messages,
+      };
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(
-        `OpenAI API Error: ${error.error?.message || "Erro desconhecido"}`
-      );
+      // Adicionar system prompt se fornecido
+      if (systemPrompt) {
+        requestParams.system = systemPrompt;
+      }
+
+      const response = await this.anthropic.messages.create(requestParams);
+
+      return response.content[0].text;
+    } catch (error) {
+      console.error("Erro na requisição para Claude:", error);
+      if (error.status === 401) {
+        throw new Error("API key do Claude inválida ou expirada");
+      }
+      if (error.status === 429) {
+        throw new Error("Limite de requisições atingido. Tente novamente em alguns minutos");
+      }
+      throw new Error(`Erro na API do Claude: ${error.message}`);
     }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
   }
 
-  // 🎯 PROMPT REVOLUCIONÁRIO: Análise fundamentalista de FII individual
+  // 🎯 Análise fundamentalista de FII individual
   async analyzeFII(fiiData, userProfile) {
-    const messages = [
-      {
-        role: "system",
-        content: `🏆 VOCÊ É BENJAMIN GRAHAM + WARREN BUFFETT ESPECIALIZADO EM FIIs BRASILEIROS! 🏆
+    const systemPrompt = `🏆 VOCÊ É BENJAMIN GRAHAM + WARREN BUFFETT ESPECIALIZADO EM FIIs BRASILEIROS! 🏆
 
 🎯 MISSÃO: Realizar a ANÁLISE FUNDAMENTALISTA MAIS RIGOROSA E COMPLETA de um FII individual!
 
@@ -131,8 +141,9 @@ class OpenAIManager {
 - **MÁXIMO**: 12% valorização em 12 meses
 - **VALIDAÇÃO**: targetPrice ≤ preço_atual × 1.12
 
-RETORNE ANÁLISE COMPLETA E PRECISA!`,
-      },
+RETORNE ANÁLISE COMPLETA E PRECISA!`;
+
+    const messages = [
       {
         role: "user",
         content: `🔍 ANÁLISE FUNDAMENTALISTA SUPREMA:
@@ -181,7 +192,7 @@ RETORNE ANÁLISE COMPLETA E PRECISA!`,
       },
     ];
 
-    const response = await this.makeRequest(messages, 0.1);
+    const response = await this.makeRequest(messages, 0.1, systemPrompt);
     let cleanResponse = response.trim();
 
     if (cleanResponse.startsWith("```json")) {
@@ -198,12 +209,9 @@ RETORNE ANÁLISE COMPLETA E PRECISA!`,
     return JSON.parse(cleanResponse);
   }
 
-  // 🎯 PROMPT REVOLUCIONÁRIO: Análise de carteira completa
+  // 🎯 Análise de portfólio completa
   async analyzePortfolio(portfolio, userProfile) {
-    const messages = [
-      {
-        role: "system",
-        content: `🏆 VOCÊ É RAY DALIO + HARRY MARKOWITZ ESPECIALIZADO EM CARTEIRAS FIIs BRASILEIROS! 🏆
+    const systemPrompt = `🏆 VOCÊ É RAY DALIO + HARRY MARKOWITZ ESPECIALIZADO EM CARTEIRAS FIIs BRASILEIROS! 🏆
 
 🎯 MISSÃO: Realizar a ANÁLISE DE PORTFÓLIO MAIS AVANÇADA E COMPLETA do mundo!
 
@@ -272,8 +280,9 @@ RETORNE ANÁLISE COMPLETA E PRECISA!`,
    - Novos aportes sugeridos
    - Saídas recomendadas
 
-RETORNE ANÁLISE COMPLETA E ESTRATÉGICA!`,
-      },
+RETORNE ANÁLISE COMPLETA E ESTRATÉGICA!`;
+
+    const messages = [
       {
         role: "user",
         content: `🔍 ANÁLISE SUPREMA DE CARTEIRA:
@@ -341,7 +350,7 @@ ${portfolio
       },
     ];
 
-    const response = await this.makeRequest(messages, 0.2);
+    const response = await this.makeRequest(messages, 0.2, systemPrompt);
     let cleanResponse = response.trim();
 
     if (cleanResponse.startsWith("```json")) {
@@ -358,179 +367,102 @@ ${portfolio
     return JSON.parse(cleanResponse);
   }
 
-  // 🎯 PROMPT SUPREMO REVOLUCIONÁRIO: Sugestões de investimento
-  async generateInvestmentSuggestions(
-    eligibleFIIs,
-    userProfile,
-    currentPortfolio = []
-  ) {
+  // 🎯 Gerar sugestões de investimento
+  async generateInvestmentSuggestions(eligibleFIIs, userProfile, currentPortfolio = []) {
+    const systemPrompt = `🏆 VOCÊ É WARREN BUFFETT + RAY DALIO + PETER LYNCH ESPECIALIZADO EM FIIs BRASILEIROS! 🏆
+
+🎯 MISSÃO SUPREMA: MAXIMIZAR DIVIDENDOS MENSAIS E RENDA PASSIVA SUSTENTÁVEL!
+
+## 💰 OBJETIVO PRINCIPAL: MÁXIMA RENDA MENSAL
+- **FOCO ABSOLUTO**: Dividendos mensais consistentes e crescentes
+- **META**: Maior DY sustentável + crescimento anual dos dividendos
+- **PRIORIDADE**: Consistência > Volatilidade, Sustentabilidade > Picos temporários
+
+## 📊 METODOLOGIA SUPREMA "DIVIDEND MAXIMIZER":
+
+### 🔬 ANÁLISE DE DIVIDENDOS (PRIORIDADE #1):
+1. **DY SUSTENTÁVEL**: DY atual vs histórico 24m, consistência distribuições
+2. **CRESCIMENTO DIVIDENDOS**: CAGR dividendos 24m, tendência crescimento
+3. **PREVISIBILIDADE**: Regularidade pagamentos, ausência de cortes históricos
+4. **COBERTURA**: FFO/Dividendo ratio, sustentabilidade longo prazo
+
+### 🎯 QUALIDADE OPERACIONAL (SUPORTE AOS DIVIDENDOS):
+1. **RECEITA RECORRENTE**: Contratos longos, inquilinos AAA, reajustes IPCA+
+2. **OCUPAÇÃO ALTA**: Taxa ocupação >95%, baixa rotatividade inquilinos
+3. **GESTÃO EFICIENTE**: Baixo custo administração, transparência, track record
+
+### 🌍 SUSTENTABILIDADE SECULAR:
+1. **SETOR RESILIENTE**: Demanda crescente, baixa obsolescência
+2. **LOCALIZAÇÃO PREMIUM**: Regiões valorizadas, infraestrutura consolidada
+3. **MOAT DEFENSIVO**: Barreiras entrada, vantagens competitivas duradouras
+
+### 📈 COMPARAÇÃO SELIC (MATEMÁTICA CORRETA):
+- **DY < 14.75%**: "DY de X% abaixo da Selic de 14.75%"
+- **DY ≥ 14.75%**: "DY de X% superior à Selic de 14.75%"
+- **JAMAIS**: Erro de dizer que menor "supera" maior!
+
+### 🎯 PREÇO-ALVO CONSERVADOR:
+- **FOCO**: Dividendos > Valorização (buy and hold para renda)
+- **MÁXIMO**: 12% valorização em 12 meses
+- **VALIDAÇÃO**: targetPrice ≤ preço_atual × 1.12
+
+CONTEXTO 2025: Selic 14.75%, IPCA 4.5%, PIB +2.1%
+
+PRIORIZE FIIs COM: DY alto + crescimento histórico + consistência + sustentabilidade!`;
+
     const messages = [
       {
-        role: "system",
-        content: `🏆 VOCÊ É O MAIOR ANALISTA FUNDAMENTALISTA DE FIIs DO MUNDO! 🏆
-
-Você combina a genialidade de:
-• Warren Buffett (Value Investing + Moats)
-• Benjamin Graham (Análise Fundamentalista Rigorosa)
-• Peter Lynch (Growth at Reasonable Price)
-• Ray Dalio (All Weather Portfolio)
-• Howard Marks (Análise de Risco)
-• Luiz Barsi (Dividendos Sustentáveis)
-
-🎯 MISSÃO: Criar a MELHOR carteira de FIIs para RENDA PASSIVA MENSAL MÁXIMA e SUSTENTÁVEL!
-
-## 📊 METODOLOGIA "PICA DAS GALÁXIAS SUPREMA" - ANÁLISE FUNDAMENTALISTA REVOLUCIONÁRIA
-
-### 🌍 CONTEXTO MACROECONÔMICO 2025:
-- Selic: 14.75% (referência de risco)
-- IPCA: 4.5% (meta de retorno real)
-- PIB: +2.1% (crescimento moderado)
-- Cenário: Oportunidades em logística premium, corporativos AAA, recebíveis IPCA+
-- Meta Suprema: Retorno real ≥ 8% a.a. (DY + Valorização)
-
-### 🔬 FILTROS QUANTITATIVOS RIGOROSOS (Graham/Buffett):
-1. **DY SUSTENTÁVEL**: ≥ 6% E histórico 24m estável (±2%)
-2. **VALUATION ATRATIVO**: P/VP ≤ 1.2 (tijolo), ≤ 1.4 (papel)
-3. **LIQUIDEZ PREMIUM**: ≥ R$ 200k/dia (média 30d)
-4. **CONSISTÊNCIA**: 24+ meses pagando dividendos SEM cortes
-5. **EFICIÊNCIA**: ROE implícito (DY ÷ P/VP) ≥ 6%
-6. **CRESCIMENTO**: CAGR DY 24m ≥ IPCA
-7. **QUALIDADE**: Vacancy ≤ 10%, Inadimplência ≤ 3%
-
-### 🎯 ANÁLISE QUALITATIVA PROFUNDA (Lynch/Marks):
-1. **GESTÃO EXCEPCIONAL**: Track record 7+ anos, AUM ≥ R$ 1bi
-2. **ATIVOS PREMIUM**: Localização AAA, idade ≤ 15 anos
-3. **CONTRATOS BLINDADOS**: Prazo médio ≥ 7 anos, reajuste IPCA+
-4. **INQUILINOS AAA**: Diversificação ≥ 5 inquilinos, nenhum >30%
-5. **MOAT DEFENSIVO**: Barreira de entrada, localização única
-6. **TESE SUSTENTÁVEL**: Tendência secular favorável 10+ anos
-7. **GOVERNANÇA**: Transparência, relatórios mensais, auditoria Big4
-
-### 🌐 DIVERSIFICAÇÃO INTELIGENTE (Dalio All Weather):
-- **SETORIAL**: Máx 30% por setor, mín 3 setores diferentes
-- **GEOGRÁFICA**: SP ≤ 50%, RJ ≤ 20%, outros ≥ 30%
-- **GESTORA**: Máx 20% por gestora, preferência top 10
-- **TIPOLOGIA**: 50-70% tijolo, 30-50% papel (conforme perfil)
-- **CORRELAÇÃO**: Baixa correlação entre ativos (<0.6)
-
-### 💰 PREÇOS-ALVO FUNDAMENTALISTAS RIGOROSOS:
-- **MÁXIMO ABSOLUTO**: 12% valorização em 12 meses
-- **METODOLOGIA**: DCF + Múltiplos + Análise técnica
-- **VALIDAÇÃO OBRIGATÓRIA**: targetPrice ≤ preço_atual × 1.12
-- **CONSERVADORISMO**: Sempre usar cenário base, nunca otimista
-- **FORMATO**: Número decimal puro (ex: 12.50)
-
-### 📈 COMPARAÇÕES SELIC MATEMATICAMENTE CORRETAS:
-- **Se DY < Selic**: "DY de X% abaixo da Selic de 14.75%, compensado por valorização e qualidade"
-- **Se DY ≈ Selic**: "DY de X% próximo à Selic de 14.75%, competitivo com renda fixa"
-- **Se DY > Selic**: "DY de X% superior à Selic de 14.75%, muito atrativo"
-- **JAMAIS**: Dizer que DY menor "supera" Selic maior (erro matemático grave!)
-
-### 🎯 ESTRATÉGIAS POR PERFIL:
-**CONSERVADOR**: 70% tijolo AAA, DY ≥ 7%, P/VP ≤ 1.1, contratos 10+ anos
-**MODERADO**: 60% tijolo, 40% papel, DY ≥ 6.5%, crescimento sustentável
-**AGRESSIVO**: 40% tijolo, 60% papel, DY ≥ 6%, potencial valorização
-
-### 🔍 ANÁLISE DE STRESS SCENARIOS:
-- Selic 18%: Impacto no P/VP e demanda
-- Recessão: Sustentabilidade dos dividendos
-- Inflação 8%: Reajustes contratuais
-- Vacancy +5%: Impacto no DY
-
-### ⚡ REGRAS FUNDAMENTAIS INVIOLÁVEIS:
-1. SEMPRE 4 FIIs (diversificação ótima)
-2. NUNCA inventar dados (só usar fornecidos)
-3. ANÁLISE fundamentalista de 200+ palavras por FII
-4. JUSTIFICAR cada escolha com dados concretos
-5. PRIORIZAR sustentabilidade sobre yield alto
-6. CONSIDERAR sinergia entre FIIs escolhidos
-7. FOCAR em RENDA PASSIVA MENSAL crescente
-
-RETORNE JSON PERFEITO E COMPLETO!`,
-      },
-      {
         role: "user",
-        content: `🚀 ANÁLISE SUPREMA: Selecione os 4 MELHORES FIIs para RENDA PASSIVA MÁXIMA!
+        content: `🔍 ANÁLISE SUPREMA PARA MÁXIMA RENDA MENSAL: ${eligibleFIIs.length} FIIs para R$ ${userProfile.investmentAmount}
 
-📊 UNIVERSO DISPONÍVEL (${eligibleFIIs.length} FIIs):
-${eligibleFIIs
-          .slice(0, 25)
-          .map(
-            (f) => `${f.ticker}(R$${f.price},DY${f.dividendYield}%,P/VP${f.pvp},${f.sector})`
-          )
-          .join(" | ")}
+👤 PERFIL: ${userProfile.riskProfile} | ${userProfile.investmentGoal} | ${userProfile.timeHorizon}
 
-💼 CARTEIRA ATUAL: ${
-          currentPortfolio.length > 0
-            ? currentPortfolio.map((p) => `${p.ticker}(${p.shares} cotas)`).join(", ")
-            : "NOVA CARTEIRA"
-        }
+💰 OBJETIVO: MAXIMIZAR DIVIDENDOS MENSAIS SUSTENTÁVEIS
 
-👤 PERFIL INVESTIDOR:
-- Risco: ${userProfile.riskProfile}
-- Objetivo: ${userProfile.investmentGoal}
-- Prazo: ${userProfile.timeHorizon}
-- Capital: R$ ${userProfile.investmentAmount?.toLocaleString()}
+📊 FIIs: ${JSON.stringify(eligibleFIIs.slice(0, 80))}
 
-🌍 CENÁRIO MACRO:
-- Selic: 14.75% | IPCA: 4.5% | PIB: +2.1%
-- Tendências: E-commerce, trabalho híbrido, nearshoring
-
-🎯 RETORNE JSON COMPLETO (OBRIGATÓRIO 4 FIIs):
-
+🎯 RETORNE JSON COMPLETO (4 FIIs COM MÁXIMO DY SUSTENTÁVEL):
 {
   "suggestions": [
     {
-      "ticker": "CÓDIGO11",
-      "name": "Nome Completo do FII",
-      "price": preço_atual_exato,
-      "dividendYield": yield_percentual,
-      "pvp": preco_valor_patrimonial,
-      "sector": "setor_especifico",
-      "recommendedShares": quantidade_cotas,
-      "recommendedAmount": valor_investimento,
-      "percentage": percentual_carteira,
-      "score": nota_0_a_10,
-      "reasoning": "ANÁLISE FUNDAMENTALISTA COMPLETA 200+ palavras: Tese de investimento, qualidade da gestão, ativos, contratos, inquilinos, localização, sustentabilidade DY, potencial valorização, comparação com Selic, riscos e oportunidades. Use dados concretos e metodologia Buffett+Graham+Lynch.",
-      "strengths": ["ponto_forte_1", "ponto_forte_2", "ponto_forte_3"],
-      "risks": ["risco_1", "risco_2"],
-      "targetPrice": preco_alvo_maximo_12_porcento,
-      "timeHorizon": "prazo_realizacao",
-      "moat": "vantagem_competitiva_defensiva",
-      "sustainability": "analise_sustentabilidade_dividendos"
+      "ticker": "CODIGO11",
+      "name": "Nome FII",
+      "price": 100.0,
+      "dividendYield": 8.5,
+      "pvp": 1.05,
+      "sector": "Setor",
+      "recommendedShares": 10,
+      "recommendedAmount": 1000.0,
+      "percentage": 25.0,
+      "score": 9.0,
+      "reasoning": "Análise FOCADA EM DIVIDENDOS: DY sustentável vs histórico, crescimento dividendos (CAGR), consistência distribuições, cobertura FFO, receita recorrente, contratos blindados, inquilinos AAA, gestão eficiente, setor resiliente, comparação CORRETA com Selic 14.75%. FOCO: renda passiva máxima. Max 150 palavras.",
+      "strengths": ["força dividendos 1", "força dividendos 2", "força dividendos 3"],
+      "risks": ["risco dividendos 1", "risco dividendos 2"],
+      "targetPrice": 110.0,
+      "timeHorizon": "12 meses",
+      "moat": "vantagem competitiva para sustentar dividendos",
+      "sustainability": "sustentabilidade e crescimento dos dividendos mensais",
+      "monthlyIncome": "renda mensal estimada por cota",
+      "dividendGrowth": "crescimento histórico dos dividendos (%)"
     }
   ],
   "portfolioStrategy": {
-    "overallApproach": "Estratégia geral da carteira baseada em diversificação inteligente e sustentabilidade de renda",
-    "diversification": "Análise detalhada da diversificação setorial, geográfica e de gestoras",
-    "expectedReturn": "Cálculo: (DY médio ponderado + valorização esperada conservadora) com justificativa fundamentalista",
-    "riskManagement": "Estratégias de mitigação de riscos e stress scenarios",
-    "rebalancing": "Critérios para rebalanceamento futuro"
-  },
-  "marketAnalysis": {
-    "currentScenario": "Análise do cenário atual FIIs vs Selic vs Inflação",
-    "opportunities": "Principais oportunidades macro e setoriais",
-    "risks": "Principais riscos e como mitigar",
-    "outlook": "Perspectivas 12-24 meses"
-  },
-  "summary": {
-    "totalInvestment": valor_total_exato,
-    "averageYield": yield_medio_ponderado,
-    "averagePVP": pvp_medio_ponderado,
-    "riskLevel": "BAIXO|MÉDIO|ALTO",
-    "expectedTotalReturn": "retorno_total_anual_conservador",
-    "monthlyIncome": "renda_passiva_mensal_estimada",
-    "paybackPeriod": "prazo_retorno_investimento"
+    "overallApproach": "estratégia focada em máxima renda mensal sustentável",
+    "diversification": "diversificação para estabilizar dividendos mensais",
+    "expectedReturn": "retorno esperado com foco em dividendos",
+    "riskManagement": "gestão de risco para proteger fluxo de dividendos",
+    "monthlyIncomeTarget": "meta de renda mensal total da carteira"
   }
 }`,
       },
     ];
 
-    const response = await this.makeRequest(messages, 0.05); // Temperatura ultra baixa para precisão
+    const response = await this.makeRequest(messages, 0.05, systemPrompt); // Temperatura ultra baixa para precisão
 
     // 🔧 Limpeza robusta do JSON
     let cleanResponse = response.trim();
 
+    // Remover markdown se presente
     if (cleanResponse.startsWith("```json")) {
       cleanResponse = cleanResponse
         .replace(/```json\s*/, "")
@@ -542,34 +474,56 @@ ${eligibleFIIs
         .replace(/```\s*$/, "");
     }
 
+    // Encontrar o JSON válido
     const jsonStart = cleanResponse.indexOf("{");
     const jsonEnd = cleanResponse.lastIndexOf("}") + 1;
-    if (jsonStart !== -1 && jsonEnd !== -1) {
+    
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
       cleanResponse = cleanResponse.substring(jsonStart, jsonEnd);
     }
 
+    // Log para debug
+    console.log("🔍 Response original:", response);
+    console.log("🔍 Response limpo:", cleanResponse);
+
     try {
-      return JSON.parse(cleanResponse);
+      const parsed = JSON.parse(cleanResponse);
+      console.log("✅ JSON parseado com sucesso:", parsed);
+      return parsed;
     } catch (error) {
-      console.error("Erro ao fazer parse do JSON:", error);
-      console.error("Response original:", response);
-      console.error("Response limpo:", cleanResponse);
-      throw new Error("Resposta da IA não está em formato JSON válido");
+      console.error("❌ Erro ao fazer parse do JSON:", error);
+      console.error("📄 Response original:", response);
+      console.error("🧹 Response limpo:", cleanResponse);
+      
+      // Tentar uma limpeza mais agressiva
+      try {
+        // Remover possíveis caracteres invisíveis
+        const ultraClean = cleanResponse
+          .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Remove caracteres de controle
+          .replace(/^\s+|\s+$/g, "") // Remove espaços no início e fim
+          .trim();
+        
+        console.log("🔧 Tentando parse ultra-limpo:", ultraClean);
+        const ultraParsed = JSON.parse(ultraClean);
+        console.log("✅ JSON ultra-limpo parseado com sucesso:", ultraParsed);
+        return ultraParsed;
+      } catch (ultraError) {
+        console.error("❌ Falha no parse ultra-limpo também:", ultraError);
+        throw new Error(`Resposta da IA não está em formato JSON válido. Erro: ${error.message}`);
+      }
     }
   }
 
-  // 🎯 PROMPT OTIMIZADO CORRIGIDO: Análise de mercado geral
+  // 🎯 Análise de mercado
   async generateMarketAnalysis(userProfile) {
-    const messages = [
-      {
-        role: "system",
-        content: `Analista SUPREMO mercado FIIs brasileiro.
+    const systemPrompt = `Analista SUPREMO mercado FIIs brasileiro.
 
 CONTEXTO 2025: Selic 14.75%, IPCA 4.5%, PIB +2.1%
 SETORES: Logística (e-commerce), Corporativo (híbrido), Shopping (omnichannel), Recebíveis (spread)
 
-RETORNE JSON SIMPLES.`,
-      },
+RETORNE JSON SIMPLES.`;
+
+    const messages = [
       {
         role: "user",
         content: `Analise mercado FIIs para perfil ${userProfile.riskProfile} | ${userProfile.investmentGoal}
@@ -591,7 +545,7 @@ JSON:
       },
     ];
 
-    const response = await this.makeRequest(messages, 0.2);
+    const response = await this.makeRequest(messages, 0.2, systemPrompt);
     let cleanResponse = response.trim();
 
     if (cleanResponse.startsWith("```json")) {
@@ -612,12 +566,12 @@ JSON:
 // 🎯 Provider do contexto da IA
 export const AIProvider = ({ children }) => {
   const { user } = useAuth();
-  const [openAIManager] = useState(() => new OpenAIManager());
+  const [claudeManager] = useState(() => new ClaudeManager());
   const [isConfigured, setIsConfigured] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // ✅ CORREÇÃO CRÍTICA: Estado para armazenar BRAPI token
+  // ✅ Estado para armazenar BRAPI token
   const [brapiToken, setBrapiToken] = useState(null);
 
   // 🔧 Carregar configurações do Supabase
@@ -631,7 +585,7 @@ export const AIProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from("user_settings")
-        .select("openai_api_key, brapi_token")
+        .select("claude_api_key, brapi_token")
         .eq("user_id", user.id)
         .single();
 
@@ -639,22 +593,24 @@ export const AIProvider = ({ children }) => {
         throw error;
       }
 
-      if (data?.openai_api_key) {
-        openAIManager.setApiKey(data.openai_api_key);
+      // Configurar Claude se disponível
+      if (data?.claude_api_key) {
+        claudeManager.setApiKey(data.claude_api_key);
         setIsConfigured(true);
       }
 
-      // ✅ CORREÇÃO CRÍTICA: Carregar BRAPI token
+      // Carregar BRAPI token
       if (data?.brapi_token) {
         setBrapiToken(data.brapi_token);
         console.log("✅ BRAPI token carregado do Supabase:", data.brapi_token);
       }
+
     } catch (error) {
       console.error("Erro ao carregar configurações:", error);
     }
   };
 
-  // 🔧 Salvar API key no Supabase
+  // 🔧 Salvar API key do Claude no Supabase
   const setApiKey = async (key) => {
     try {
       if (!user) {
@@ -664,7 +620,7 @@ export const AIProvider = ({ children }) => {
       const { error } = await supabase.from("user_settings").upsert(
         {
           user_id: user.id,
-          openai_api_key: key,
+          claude_api_key: key,
           updated_at: new Date().toISOString(),
         },
         {
@@ -674,16 +630,17 @@ export const AIProvider = ({ children }) => {
 
       if (error) throw error;
 
-      openAIManager.setApiKey(key);
+      claudeManager.setApiKey(key);
       setIsConfigured(!!key);
-      console.log("✅ API key salva no Supabase");
+      
+      console.log("✅ API key do Claude salva no Supabase");
     } catch (error) {
-      console.error("❌ Erro ao salvar API key:", error);
+      console.error("❌ Erro ao salvar API key do Claude:", error);
       throw error;
     }
   };
 
-  // 🔧 Remover API key do Supabase
+  // 🗑️ Remover API key do Claude
   const removeApiKey = async () => {
     try {
       if (!user) {
@@ -693,7 +650,7 @@ export const AIProvider = ({ children }) => {
       const { error } = await supabase.from("user_settings").upsert(
         {
           user_id: user.id,
-          openai_api_key: null,
+          claude_api_key: null,
           updated_at: new Date().toISOString(),
         },
         {
@@ -703,27 +660,14 @@ export const AIProvider = ({ children }) => {
 
       if (error) throw error;
 
-      openAIManager.setApiKey(null);
+      claudeManager.setApiKey(null);
       setIsConfigured(false);
-      console.log("✅ API key removida do Supabase");
+      
+      console.log("✅ API key do Claude removida");
     } catch (error) {
-      console.error("❌ Erro ao remover API key:", error);
+      console.error("❌ Erro ao remover API key do Claude:", error);
       throw error;
     }
-  };
-
-  // ✅ CORREÇÃO CRÍTICA: Obter BRAPI token do estado
-  const getBrapiToken = () => {
-    console.log("🔍 getBrapiToken chamado, token atual:", brapiToken);
-    return brapiToken;
-  };
-
-  const getApiKey = () => {
-    return openAIManager.getApiKey();
-  };
-
-  const clearError = () => {
-    setError(null);
   };
 
   // 🎯 Funções principais da IA
@@ -735,7 +679,7 @@ export const AIProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await openAIManager.generateInvestmentSuggestions(
+      const result = await claudeManager.generateInvestmentSuggestions(
         eligibleFIIs,
         userProfile,
         currentPortfolio
@@ -753,7 +697,7 @@ export const AIProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await openAIManager.analyzeFII(fiiData, userProfile);
+      const result = await claudeManager.analyzeFII(fiiData, userProfile);
       return result;
     } catch (error) {
       setError(error.message);
@@ -767,7 +711,7 @@ export const AIProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await openAIManager.analyzePortfolio(
+      const result = await claudeManager.analyzePortfolio(
         portfolio,
         userProfile
       );
@@ -784,7 +728,7 @@ export const AIProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await openAIManager.generateMarketAnalysis(userProfile);
+      const result = await claudeManager.generateMarketAnalysis(userProfile);
       return result;
     } catch (error) {
       setError(error.message);
@@ -794,19 +738,80 @@ export const AIProvider = ({ children }) => {
     }
   };
 
+  const clearError = () => {
+    setError(null);
+  };
+
+  // 🔍 Função de teste para debuggar dados BRAPI
+  const testBRAPIDataDebug = async (tickers = ["MXRF11", "CPTS11", "RBRF11"]) => {
+    if (!brapiToken) {
+      console.error("❌ Token BRAPI não configurado!");
+      return;
+    }
+    
+    console.log("🔍 Iniciando teste de dados BRAPI...");
+    await testBRAPIData(brapiToken, tickers);
+  };
+
+  // 🔍 Função de debug específica para DY
+  const debugDYData = async () => {
+    if (!brapiToken) {
+      console.error("❌ Token BRAPI não configurado!");
+      return;
+    }
+    
+    console.log("🔍 Iniciando debug de DY...");
+    return await debugDY(brapiToken);
+  };
+
+  // 🔍 Função de teste para diferentes ranges de dividendos na BRAPI
+  const testBRAPIRange = async () => {
+    console.log("🔍 Iniciando teste de ranges BRAPI...");
+    return await testBRAPIRangeOptions();
+  };
+
+  // 🚀 Função de teste para o método híbrido inteligente
+  const testHybridMethodDebug = async () => {
+    console.log("🚀 Iniciando teste do método híbrido...");
+    return await testHybridMethod();
+  };
+
+  // Obter BRAPI token do estado
+  const getBrapiToken = () => {
+    console.log("🔍 getBrapiToken chamado, token atual:", brapiToken);
+    return brapiToken;
+  };
+
+  const getApiKey = () => {
+    return claudeManager.getApiKey();
+  };
+
   const value = {
+    // Estados
     isConfigured,
     loading,
     error,
+    
+    // Funções Claude
     setApiKey,
     removeApiKey,
     getApiKey,
-    getBrapiToken, // ✅ CORREÇÃO CRÍTICA: Função corrigida
+    
+    // Funções BRAPI
+    getBrapiToken,
+    
+    // Funções de análise
     generateInvestmentSuggestions,
     analyzeFII,
     analyzePortfolio,
     generateMarketAnalysis,
+    
+    // Utilitários
     clearError,
+    testBRAPIDataDebug,
+    debugDYData,
+    testBRAPIRange,
+    testHybridMethodDebug,
   };
 
   return <AIContext.Provider value={value}>{children}</AIContext.Provider>;

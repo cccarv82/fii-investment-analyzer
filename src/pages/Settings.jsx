@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
-  Brain,
+  Bot,
   Key,
   Shield,
   Zap,
@@ -34,25 +34,32 @@ import {
   TabsTrigger,
 } from "../components/ui/tabs";
 import { useAuth } from "../contexts/AuthContext";
+import { useAI } from "../contexts/AIContext";
 import { supabase } from "../lib/supabase";
 
 const Settings = () => {
   // 🔐 Auth context para usuário atual
   const { user } = useAuth();
+  
+  // ✅ AI context para gerenciar Claude
+  const { 
+    isConfigured,
+    getApiKey 
+  } = useAI();
 
   // 🎯 Estados para configurações
   const [settings, setSettings] = useState({
-    openai_api_key: "",
+    claude_api_key: "",
     brapi_token: "",
   });
   const [newSettings, setNewSettings] = useState({
-    openai_api_key: "",
+    claude_api_key: "",
     brapi_token: "",
   });
 
   // 🎯 Estados da interface
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [showNewApiKey, setShowNewApiKey] = useState(false);
+  const [showClaudeKey, setShowClaudeKey] = useState(false);
+  const [showNewClaudeKey, setShowNewClaudeKey] = useState(false);
   const [showBrapiToken, setShowBrapiToken] = useState(false);
   const [showNewBrapiToken, setShowNewBrapiToken] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,7 +71,7 @@ const Settings = () => {
   // 🔄 Carregar configurações do Supabase
   useEffect(() => {
     if (user) {
-      loadUserSettings();
+      loadSettings();
     }
   }, [user]);
 
@@ -84,37 +91,32 @@ const Settings = () => {
   }, [errorMessage]);
 
   // 📥 Carregar configurações do usuário do Supabase
-  const loadUserSettings = async () => {
+  const loadSettings = async () => {
     try {
       setIsLoading(true);
-      console.log("🔄 Carregando configurações do usuário...");
-
       const { data, error } = await supabase
         .from("user_settings")
-        .select("*")
+        .select("claude_api_key, brapi_token")
         .eq("user_id", user.id)
         .single();
 
       if (error && error.code !== "PGRST116") {
-        // PGRST116 = no rows returned (primeira vez)
         throw error;
       }
 
       if (data) {
-        console.log("✅ Configurações carregadas:", data);
         setSettings({
-          openai_api_key: data.openai_api_key || "",
+          claude_api_key: data.claude_api_key || "",
           brapi_token: data.brapi_token || "",
         });
       } else {
-        console.log("📝 Nenhuma configuração encontrada - primeira vez");
         setSettings({
-          openai_api_key: "",
+          claude_api_key: "",
           brapi_token: "",
         });
       }
-    } catch (err) {
-      console.error("❌ Erro ao carregar configurações:", err);
+    } catch (error) {
+      console.error("Erro ao carregar configurações:", error);
       setErrorMessage("Erro ao carregar configurações. Tente novamente.");
     } finally {
       setIsLoading(false);
@@ -152,7 +154,7 @@ const Settings = () => {
   };
 
   // 🔧 Validações
-  const isValidApiKey = (key) => {
+  const isValidClaudeKey = (key) => {
     return key && key.startsWith("sk-") && key.length >= 20;
   };
 
@@ -160,15 +162,15 @@ const Settings = () => {
     return token && token.length >= 10;
   };
 
-  // 🔧 Configurar OpenAI API Key
-  const handleConfigureApiKey = async (e) => {
+  // 🔧 Configurar Claude API Key
+  const handleConfigureClaudeKey = async (e) => {
     e.preventDefault();
-    if (!newSettings.openai_api_key.trim()) {
+    if (!newSettings.claude_api_key.trim()) {
       setErrorMessage("Por favor, insira uma API key válida.");
       return;
     }
 
-    if (!isValidApiKey(newSettings.openai_api_key.trim())) {
+    if (!isValidClaudeKey(newSettings.claude_api_key.trim())) {
       setErrorMessage(
         "API key deve começar com 'sk-' e ter pelo menos 20 caracteres."
       );
@@ -181,14 +183,14 @@ const Settings = () => {
     try {
       const updatedSettings = {
         ...settings,
-        openai_api_key: newSettings.openai_api_key.trim(),
+        claude_api_key: newSettings.claude_api_key.trim(),
       };
 
       await saveUserSettings(updatedSettings);
       setSettings(updatedSettings);
-      setNewSettings({ ...newSettings, openai_api_key: "" });
-      setShowNewApiKey(false);
-      setSuccessMessage("✅ OpenAI API Key configurada com sucesso!");
+      setNewSettings({ ...newSettings, claude_api_key: "" });
+      setShowNewClaudeKey(false);
+      setSuccessMessage("✅ Claude API Key configurada com sucesso!");
     } catch (err) {
       console.error("Erro ao configurar API key:", err);
       setErrorMessage("Erro ao configurar API key. Tente novamente.");
@@ -232,10 +234,10 @@ const Settings = () => {
     }
   };
 
-  // 🗑️ Remover OpenAI API Key
-  const handleRemoveApiKey = async () => {
+  // 🗑️ Remover Claude API Key
+  const handleRemoveClaudeKey = async () => {
     const confirmed = window.confirm(
-      "Tem certeza que deseja remover a OpenAI API key?\n\nAs análises com IA serão desabilitadas."
+      "Tem certeza que deseja remover a Claude API key?\n\nAs análises com IA serão desabilitadas."
     );
     if (!confirmed) return;
 
@@ -245,13 +247,13 @@ const Settings = () => {
     try {
       const updatedSettings = {
         ...settings,
-        openai_api_key: "",
+        claude_api_key: "",
       };
 
       await saveUserSettings(updatedSettings);
       setSettings(updatedSettings);
-      setShowApiKey(false);
-      setSuccessMessage("✅ OpenAI API Key removida com sucesso!");
+      setShowClaudeKey(false);
+      setSuccessMessage("✅ Claude API Key removida com sucesso!");
     } catch (err) {
       console.error("Erro ao remover API key:", err);
       setErrorMessage("Erro ao remover API key. Tente novamente.");
@@ -291,10 +293,10 @@ const Settings = () => {
   // 🔧 Limpar formulários
   const handleClearForm = () => {
     setNewSettings({
-      openai_api_key: "",
+      claude_api_key: "",
       brapi_token: "",
     });
-    setShowNewApiKey(false);
+    setShowNewClaudeKey(false);
     setShowNewBrapiToken(false);
     setErrorMessage("");
     setSuccessMessage("");
@@ -309,11 +311,10 @@ const Settings = () => {
   };
 
   // 🎯 Estados derivados
-  const isOpenAIConfigured =
-    settings.openai_api_key && settings.openai_api_key.length > 0;
+  const isClaudeConfigured = isConfigured;
   const isBrapiConfigured =
     settings.brapi_token && settings.brapi_token.length > 0;
-  const isFullyConfigured = isOpenAIConfigured && isBrapiConfigured;
+  const isFullyConfigured = isClaudeConfigured && isBrapiConfigured;
 
   if (isLoading) {
     return (
@@ -354,8 +355,7 @@ const Settings = () => {
                     Sistema Totalmente Configurado
                   </p>
                   <p className="text-sm text-green-600">
-                    OpenAI e BRAPI configurados - Todas as funcionalidades
-                    ativas
+                    Claude e BRAPI configurados - Todas as funcionalidades ativas
                   </p>
                 </div>
               </>
@@ -367,8 +367,7 @@ const Settings = () => {
                     Configuração Incompleta
                   </p>
                   <p className="text-sm text-orange-600">
-                    Configure OpenAI e BRAPI para ativar todas as
-                    funcionalidades
+                    Configure Claude e BRAPI para ativar todas as funcionalidades
                   </p>
                 </div>
               </>
@@ -405,44 +404,42 @@ const Settings = () => {
 
       {/* Tabs */}
       <Tabs defaultValue="apis">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="apis">APIs & Integrações</TabsTrigger>
-          <TabsTrigger value="preferences">Preferências</TabsTrigger>
           <TabsTrigger value="about">Sobre</TabsTrigger>
         </TabsList>
 
         {/* APIs & Integrações */}
         <TabsContent value="apis" className="space-y-6">
-          {/* OpenAI Configuration */}
+          {/* Claude Configuration */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
-                OpenAI API Key
+                <Bot className="h-5 w-5" />
+                Claude API Key (Opus 4)
               </CardTitle>
               <CardDescription>
-                Configure sua API key da OpenAI para análises fundamentalistas
-                com IA
+                Configure sua API key da Claude para análises fundamentalistas com IA
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Status OpenAI */}
+              {/* Status Claude */}
               <div
                 className={`flex items-center gap-3 p-4 border rounded-lg ${
-                  isOpenAIConfigured
+                  isClaudeConfigured
                     ? "border-green-200 bg-green-50"
                     : "border-gray-200 bg-gray-50"
                 }`}
               >
-                {isOpenAIConfigured ? (
+                {isClaudeConfigured ? (
                   <>
                     <CheckCircle className="h-5 w-5 text-green-600" />
                     <div className="flex-1">
                       <p className="font-medium text-green-700">
-                        OpenAI Configurada
+                        Claude Configurada
                       </p>
                       <p className="text-sm text-green-600">
-                        Análises com IA habilitadas
+                        Análises com IA habilitadas (Modelo: claude-opus-4-20250514)
                       </p>
                     </div>
                   </>
@@ -451,7 +448,7 @@ const Settings = () => {
                     <AlertCircle className="h-5 w-5 text-gray-600" />
                     <div className="flex-1">
                       <p className="font-medium text-gray-700">
-                        OpenAI Não Configurada
+                        Claude Não Configurada
                       </p>
                       <p className="text-sm text-gray-600">
                         Configure para habilitar análises com IA
@@ -461,8 +458,8 @@ const Settings = () => {
                 )}
               </div>
 
-              {/* Configuração OpenAI */}
-              {isOpenAIConfigured ? (
+              {/* Configuração Claude */}
+              {isClaudeConfigured ? (
                 <div className="space-y-4">
                   <div>
                     <Label className="text-sm font-medium">
@@ -470,11 +467,11 @@ const Settings = () => {
                     </Label>
                     <div className="flex items-center gap-2 mt-2">
                       <Input
-                        type={showApiKey ? "text" : "password"}
+                        type={showClaudeKey ? "text" : "password"}
                         value={
-                          showApiKey
-                            ? settings.openai_api_key
-                            : getMaskedKey(settings.openai_api_key)
+                          showClaudeKey
+                            ? getApiKey()
+                            : getMaskedKey(getApiKey())
                         }
                         readOnly
                         className="flex-1 bg-gray-50"
@@ -482,10 +479,10 @@ const Settings = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setShowApiKey(!showApiKey)}
+                        onClick={() => setShowClaudeKey(!showClaudeKey)}
                         className="px-3"
                       >
-                        {showApiKey ? (
+                        {showClaudeKey ? (
                           <EyeOff className="h-4 w-4" />
                         ) : (
                           <Eye className="h-4 w-4" />
@@ -495,7 +492,7 @@ const Settings = () => {
                   </div>
                   <Button
                     variant="destructive"
-                    onClick={handleRemoveApiKey}
+                    onClick={handleRemoveClaudeKey}
                     disabled={isRemoving}
                     className="flex items-center gap-2"
                   >
@@ -508,23 +505,26 @@ const Settings = () => {
                   </Button>
                 </div>
               ) : (
-                <form onSubmit={handleConfigureApiKey} className="space-y-4">
+                <form
+                  onSubmit={handleConfigureClaudeKey}
+                  className="space-y-4"
+                >
                   <div>
                     <Label
-                      htmlFor="openai-api-key"
+                      htmlFor="claude-api-key"
                       className="text-sm font-medium"
                     >
-                      Nova API Key da OpenAI
+                      Nova API Key da Claude
                     </Label>
                     <div className="flex items-center gap-2 mt-2">
                       <Input
-                        id="openai-api-key"
-                        type={showNewApiKey ? "text" : "password"}
-                        value={newSettings.openai_api_key}
+                        id="claude-api-key"
+                        type={showNewClaudeKey ? "text" : "password"}
+                        value={newSettings.claude_api_key}
                         onChange={(e) =>
                           setNewSettings({
                             ...newSettings,
-                            openai_api_key: e.target.value,
+                            claude_api_key: e.target.value,
                           })
                         }
                         placeholder="sk-..."
@@ -534,10 +534,10 @@ const Settings = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setShowNewApiKey(!showNewApiKey)}
+                        onClick={() => setShowNewClaudeKey(!showNewClaudeKey)}
                         className="px-3"
                       >
-                        {showNewApiKey ? (
+                        {showNewClaudeKey ? (
                           <EyeOff className="h-4 w-4" />
                         ) : (
                           <Eye className="h-4 w-4" />
@@ -547,12 +547,12 @@ const Settings = () => {
                     <p className="text-xs text-muted-foreground mt-1">
                       Obtenha sua API key em{" "}
                       <a
-                        href="https://platform.openai.com/api-keys"
+                        href="https://console.anthropic.com/settings/keys"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline inline-flex items-center gap-1"
                       >
-                        platform.openai.com
+                        console.anthropic.com
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     </p>
@@ -560,7 +560,7 @@ const Settings = () => {
                   <div className="flex gap-2">
                     <Button
                       type="submit"
-                      disabled={isSaving || !newSettings.openai_api_key.trim()}
+                      disabled={isSaving || !newSettings.claude_api_key.trim()}
                       className="flex items-center gap-2"
                     >
                       {isSaving ? (
@@ -757,26 +757,6 @@ const Settings = () => {
           </Card>
         </TabsContent>
 
-        {/* Preferências */}
-        <TabsContent value="preferences" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Preferências do Sistema
-              </CardTitle>
-              <CardDescription>
-                Configure suas preferências de uso e privacidade
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Funcionalidades de preferências serão implementadas em breve.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* Sobre */}
         <TabsContent value="about" className="space-y-4">
           <Card>
@@ -800,7 +780,13 @@ const Settings = () => {
               <div className="space-y-2">
                 <p className="font-medium">Tecnologias</p>
                 <p className="text-sm text-muted-foreground">
-                  React, Supabase, OpenAI GPT-4, BRAPI, Tailwind CSS
+                  React, Supabase, Claude Opus 4, BRAPI, Tailwind CSS
+                </p>
+              </div>
+              <div className="space-y-2">
+                <p className="font-medium">Inteligência Artificial</p>
+                <p className="text-sm text-muted-foreground">
+                  Powered by Claude Opus 4 (claude-opus-4-20250514) - O modelo mais avançado da Anthropic para análises fundamentalistas
                 </p>
               </div>
               <div className="space-y-2">

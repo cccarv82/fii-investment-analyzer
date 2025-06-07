@@ -157,7 +157,7 @@ const Investment = () => {
       // 🔧 CORREÇÃO: Verificar configurações antes de começar
       if (!isConfigured) {
         throw new Error(
-          "OpenAI API key não configurada. Configure nas Configurações."
+          "Claude API key não configurada. Configure nas Configurações."
         );
       }
 
@@ -236,8 +236,7 @@ const Investment = () => {
       };
 
       // 🔧 DADOS OTIMIZADOS: Enviar apenas dados essenciais para IA (REDUZIDO)
-      const optimizedFIIs = finalFIIsForAI.slice(0, 40).map((fii) => ({
-        // Reduzido de 60 para 40
+      const optimizedFIIs = finalFIIsForAI.slice(0, 80).map((fii) => ({
         ticker: fii.ticker,
         name: fii.name,
         price: fii.price,

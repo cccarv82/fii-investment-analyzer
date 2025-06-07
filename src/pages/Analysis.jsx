@@ -51,16 +51,15 @@ const Analysis = () => {
     setAnalysisLoading(true);
     try {
       console.log("🔄 Carregando análise de mercado...");
+
       // ✅ CORREÇÃO: Usar função correta e passar dados mock se necessário
-      const mockMarketData = {
-        selic: 10.75,
-        inflation: 4.5,
-        gdp: 2.1,
-        ifix: 2800,
-        sectors: ["Logística", "Corporativo", "Shoppings", "Recebíveis"],
+      const mockUserProfile = {
+        riskProfile: "moderado",
+        investmentGoal: "equilibrado",
+        timeHorizon: "médio prazo",
       };
 
-      const analysis = await generateMarketAnalysis(mockMarketData);
+      const analysis = await generateMarketAnalysis(mockUserProfile);
       setMarketAnalysis(analysis);
       console.log("✅ Análise de mercado carregada:", analysis);
     } catch (error) {
@@ -183,6 +182,17 @@ const Analysis = () => {
     }
   };
 
+  // ✅ FUNÇÃO AUXILIAR PARA RENDERIZAR DADOS SEGUROS
+  const renderSafeContent = (content) => {
+    if (typeof content === "string") {
+      return content;
+    }
+    if (typeof content === "object" && content !== null) {
+      return JSON.stringify(content);
+    }
+    return String(content || "");
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -274,7 +284,7 @@ const Analysis = () => {
                     </Badge>
                   </div>
                   <p className="text-muted-foreground">
-                    {marketAnalysis.outlook}
+                    {renderSafeContent(marketAnalysis.outlook)}
                   </p>
                 </CardContent>
               </Card>
@@ -289,10 +299,12 @@ const Analysis = () => {
                     {marketAnalysis.keyTrends?.map((trend, index) => (
                       <div
                         key={index}
-                        className="flex items-start gap-3 p-3 border rounded-lg"
+                        className="flex items-start gap-3 p-3 rounded-lg bg-muted/50"
                       >
-                        <TrendingUp className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <p className="text-sm">{trend}</p>
+                        <TrendingUp className="h-4 w-4 mt-0.5 text-blue-500" />
+                        <span className="text-sm">
+                          {renderSafeContent(trend)}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -302,24 +314,24 @@ const Analysis = () => {
               {/* Perspectivas Setoriais */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Perspectivas por Setor</CardTitle>
+                  <CardTitle>Perspectivas Setoriais</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-4 md:grid-cols-2">
-                    {Object.entries(marketAnalysis.sectorOutlook || {}).map(
-                      ([sector, outlook]) => (
-                        <div key={sector} className="p-4 border rounded-lg">
-                          <h4 className="font-medium capitalize mb-2">
-                            {sector}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {typeof outlook === "string"
-                              ? outlook
-                              : JSON.stringify(outlook)}
-                          </p>
-                        </div>
-                      )
-                    )}
+                    {marketAnalysis.sectorOutlook &&
+                      Object.entries(marketAnalysis.sectorOutlook).map(
+                        ([sector, outlook]) => (
+                          <div
+                            key={sector}
+                            className="p-4 rounded-lg border bg-card"
+                          >
+                            <h4 className="font-semibold mb-2">{sector}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {renderSafeContent(outlook)}
+                            </p>
+                          </div>
+                        )
+                      )}
                   </div>
                 </CardContent>
               </Card>
@@ -337,9 +349,12 @@ const Analysis = () => {
                     <div className="space-y-2">
                       {marketAnalysis.opportunities?.map(
                         (opportunity, index) => (
-                          <div key={index} className="flex items-start gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-600 mt-2"></div>
-                            <p className="text-sm">{opportunity}</p>
+                          <div
+                            key={index}
+                            className="flex items-start gap-2 text-sm"
+                          >
+                            <div className="w-2 h-2 rounded-full bg-green-500 mt-2 flex-shrink-0" />
+                            <span>{renderSafeContent(opportunity)}</span>
                           </div>
                         )
                       )}
@@ -357,9 +372,12 @@ const Analysis = () => {
                   <CardContent>
                     <div className="space-y-2">
                       {marketAnalysis.risks?.map((risk, index) => (
-                        <div key={index} className="flex items-start gap-2">
-                          <div className="w-2 h-2 rounded-full bg-red-600 mt-2"></div>
-                          <p className="text-sm">{risk}</p>
+                        <div
+                          key={index}
+                          className="flex items-start gap-2 text-sm"
+                        >
+                          <div className="w-2 h-2 rounded-full bg-red-500 mt-2 flex-shrink-0" />
+                          <span>{renderSafeContent(risk)}</span>
                         </div>
                       ))}
                     </div>
@@ -369,11 +387,13 @@ const Analysis = () => {
             </>
           ) : (
             <Card>
-              <CardContent className="flex items-center justify-center py-12">
-                <div className="text-center space-y-4">
-                  <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">
-                    Carregando análise de mercado...
+                    {analysisLoading
+                      ? "Carregando análise de mercado..."
+                      : "Clique em 'Atualizar' para carregar a análise"}
                   </p>
                 </div>
               </CardContent>
@@ -386,7 +406,7 @@ const Analysis = () => {
           {positions && positions.length > 0 ? (
             portfolioAnalysis ? (
               <>
-                {/* Scores Gerais */}
+                {/* Scores da Carteira */}
                 <div className="grid gap-4 md:grid-cols-3">
                   <Card>
                     <CardHeader className="pb-2">
@@ -400,7 +420,6 @@ const Analysis = () => {
                       </div>
                     </CardContent>
                   </Card>
-
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm font-medium">
@@ -413,11 +432,10 @@ const Analysis = () => {
                       </div>
                     </CardContent>
                   </Card>
-
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm font-medium">
-                        Risco
+                        Gestão de Risco
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -431,20 +449,17 @@ const Analysis = () => {
                 {/* Recomendações */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5 text-yellow-600" />
-                      Recomendações
-                    </CardTitle>
+                    <CardTitle>Recomendações</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {portfolioAnalysis.recommendations?.map((rec, index) => (
                         <div
                           key={index}
-                          className="flex items-start gap-3 p-3 border rounded-lg"
+                          className="flex items-start gap-2 text-sm"
                         >
-                          <Lightbulb className="h-5 w-5 text-yellow-600 mt-0.5" />
-                          <p className="text-sm">{rec}</p>
+                          <Lightbulb className="h-4 w-4 mt-0.5 text-yellow-500" />
+                          <span>{renderSafeContent(rec)}</span>
                         </div>
                       ))}
                     </div>
@@ -455,17 +470,19 @@ const Analysis = () => {
                 <div className="grid gap-4 md:grid-cols-2">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-green-600">
-                        <Target className="h-5 w-5" />
+                      <CardTitle className="text-green-600">
                         Pontos Fortes
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         {portfolioAnalysis.strengths?.map((strength, index) => (
-                          <div key={index} className="flex items-start gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-600 mt-2"></div>
-                            <p className="text-sm">{strength}</p>
+                          <div
+                            key={index}
+                            className="flex items-start gap-2 text-sm"
+                          >
+                            <div className="w-2 h-2 rounded-full bg-green-500 mt-2 flex-shrink-0" />
+                            <span>{renderSafeContent(strength)}</span>
                           </div>
                         ))}
                       </div>
@@ -474,18 +491,20 @@ const Analysis = () => {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-red-600">
-                        <AlertTriangle className="h-5 w-5" />
-                        Pontos Fracos
+                      <CardTitle className="text-orange-600">
+                        Pontos de Atenção
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         {portfolioAnalysis.weaknesses?.map(
                           (weakness, index) => (
-                            <div key={index} className="flex items-start gap-2">
-                              <div className="w-2 h-2 rounded-full bg-red-600 mt-2"></div>
-                              <p className="text-sm">{weakness}</p>
+                            <div
+                              key={index}
+                              className="flex items-start gap-2 text-sm"
+                            >
+                              <div className="w-2 h-2 rounded-full bg-orange-500 mt-2 flex-shrink-0" />
+                              <span>{renderSafeContent(weakness)}</span>
                             </div>
                           )
                         )}
@@ -493,36 +512,16 @@ const Analysis = () => {
                     </CardContent>
                   </Card>
                 </div>
-
-                {/* Ações Sugeridas */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Ações Sugeridas</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {portfolioAnalysis.suggestedActions?.map(
-                        (action, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center gap-3 p-3 border rounded-lg"
-                          >
-                            <div className="w-2 h-2 rounded-full bg-blue-600 mt-2"></div>
-                            <p className="text-sm">{action}</p>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
               </>
             ) : (
               <Card>
-                <CardContent className="flex items-center justify-center py-12">
-                  <div className="text-center space-y-4">
-                    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <CardContent className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">
-                      Analisando sua carteira...
+                      {analysisLoading
+                        ? "Analisando sua carteira..."
+                        : "Clique em 'Atualizar' para analisar sua carteira"}
                     </p>
                   </div>
                 </CardContent>
@@ -530,12 +529,15 @@ const Analysis = () => {
             )
           ) : (
             <Card>
-              <CardContent className="flex items-center justify-center py-12">
-                <div className="text-center space-y-4">
-                  <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-                  <p className="text-muted-foreground">
-                    Carregando análise de mercado...
+              <CardContent className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">
+                    Você ainda não possui FIIs em sua carteira
                   </p>
+                  <Button asChild>
+                    <a href="/portfolio">Adicionar FIIs</a>
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -547,36 +549,45 @@ const Analysis = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
+                <Lightbulb className="h-5 w-5" />
                 Insights Personalizados
               </CardTitle>
               <CardDescription>
-                Análises baseadas no seu perfil e carteira atual
+                Análises e recomendações baseadas no seu perfil e carteira
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium mb-2">💡 Dica do Dia</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Com a Selic em 10,75%, considere FIIs de recebíveis que se
-                    beneficiam dos spreads bancários elevados.
+                <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                    💡 Dica de Diversificação
+                  </h4>
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    Com a Selic em 10,75%, considere FIIs com dividend yield
+                    acima de 12% para superar a renda fixa. Foque em setores
+                    defensivos como logística e recebíveis.
                   </p>
                 </div>
 
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium mb-2">📈 Tendência Semanal</h4>
-                  <p className="text-sm text-muted-foreground">
-                    FIIs logísticos têm apresentado performance superior devido
-                    ao crescimento do e-commerce e nearshoring.
+                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  <h4 className="font-semibold text-green-900 dark:text-green-100 mb-2">
+                    📈 Oportunidade de Mercado
+                  </h4>
+                  <p className="text-sm text-green-800 dark:text-green-200">
+                    FIIs logísticos estão se beneficiando do crescimento do
+                    e-commerce. Considere aumentar exposição a este setor para
+                    capturar o crescimento estrutural.
                   </p>
                 </div>
 
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium mb-2">⚠️ Alerta de Mercado</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Monitore FIIs corporativos devido ao impacto permanente do
-                    trabalho híbrido nas taxas de ocupação.
+                <div className="p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                  <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-2">
+                    ⚠️ Atenção ao Risco
+                  </h4>
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    FIIs corporativos podem enfrentar desafios com o trabalho
+                    híbrido permanente. Monitore ocupação e reajustes
+                    contratuais.
                   </p>
                 </div>
               </div>

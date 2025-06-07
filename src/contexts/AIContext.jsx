@@ -95,6 +95,7 @@ JSON:
 
     const response = await this.makeRequest(messages, 0.2);
     let cleanResponse = response.trim();
+
     if (cleanResponse.startsWith("```json")) {
       cleanResponse = cleanResponse
         .replace(/```json\s*/, "")
@@ -105,6 +106,7 @@ JSON:
         .replace(/```\s*/, "")
         .replace(/```\s*$/, "");
     }
+
     return JSON.parse(cleanResponse);
   }
 
@@ -145,6 +147,7 @@ JSON:
 
     const response = await this.makeRequest(messages, 0.3);
     let cleanResponse = response.trim();
+
     if (cleanResponse.startsWith("```json")) {
       cleanResponse = cleanResponse
         .replace(/```json\s*/, "")
@@ -155,6 +158,7 @@ JSON:
         .replace(/```\s*/, "")
         .replace(/```\s*$/, "");
     }
+
     return JSON.parse(cleanResponse);
   }
 
@@ -171,37 +175,37 @@ JSON:
 
 EXPERTISE ELITE:
 - Buffett: Value investing, análise fundamentalista
-- Dalio: All Weather, diversificação inteligente  
+- Dalio: All Weather, diversificação inteligente
 - Lynch: Growth at reasonable price, setores promissores
 
 METODOLOGIA SUPREMA:
 1. FILTROS QUANTITATIVOS:
-   - DY: Min 6% (superar Selic 10.75%)
-   - P/VP: Max 1.3 tijolo, 1.5 recebíveis
-   - Liquidez: >100k/dia, Consistência: 12+ meses
-   - ROE: DY/P/VP > 5%
+- DY: Min 6% (superar Selic 10.75%)
+- P/VP: Max 1.3 tijolo, 1.5 recebíveis
+- Liquidez: >100k/dia, Consistência: 12+ meses
+- ROE: DY/P/VP > 5%
 
 2. ANÁLISE QUALITATIVA:
-   - Gestão: Track record 5+ anos, ESG
-   - Ativos: Localização AAA, <15 anos
-   - Inquilinos: Investment grade, 5+ anos
-   - Moat: Vantagem competitiva sustentável
+- Gestão: Track record 5+ anos, ESG
+- Ativos: Localização AAA, <15 anos
+- Inquilinos: Investment grade, 5+ anos
+- Moat: Vantagem competitiva sustentável
 
 3. CONTEXTO MACRO 2025:
-   - Selic 10.75%: FIIs devem DY>12% total return
-   - Inflação 4.5%: Reajustes IPCA+ essenciais
-   - E-commerce: Logística last-mile premium
-   - Híbrido: Corporativo AAA > genérico
+- Selic 10.75%: FIIs devem DY>12% total return
+- Inflação 4.5%: Reajustes IPCA+ essenciais
+- E-commerce: Logística last-mile premium
+- Híbrido: Corporativo AAA > genérico
 
 4. DIVERSIFICAÇÃO:
-   - Setorial: Max 35% um setor
-   - Geográfica: SP<60%, RJ<25%
-   - Gestora: Max 25% uma gestora
-   - Tipo: 60% tijolo, 40% recebíveis
+- Setorial: Max 35% um setor
+- Geográfica: SP<60%, RJ<25%
+- Gestora: Max 25% uma gestora
+- Tipo: 60% tijolo, 40% recebíveis
 
 5. MAGIC FORMULA FIIs:
-   - Ranking: DY/P/VP + Crescimento 24m
-   - Score: Média rankings (menor=melhor)
+- Ranking: DY/P/VP + Crescimento 24m
+- Score: Média rankings (menor=melhor)
 
 INSTRUÇÕES:
 - SEMPRE 4 FIIs (20-30% cada)
@@ -294,7 +298,6 @@ JSON (4 FIIs obrigatório):
 
     const jsonStart = cleanResponse.indexOf("{");
     const jsonEnd = cleanResponse.lastIndexOf("}") + 1;
-
     if (jsonStart !== -1 && jsonEnd !== -1) {
       cleanResponse = cleanResponse.substring(jsonStart, jsonEnd);
     }
@@ -309,7 +312,7 @@ JSON (4 FIIs obrigatório):
     }
   }
 
-  // 🎯 PROMPT OTIMIZADO: Análise de mercado geral
+  // 🎯 PROMPT OTIMIZADO CORRIGIDO: Análise de mercado geral
   async generateMarketAnalysis(userProfile) {
     const messages = [
       {
@@ -319,30 +322,32 @@ JSON (4 FIIs obrigatório):
 CONTEXTO 2025: Selic 10.75%, IPCA 4.5%, PIB +2.1%
 SETORES: Logística (e-commerce), Corporativo (híbrido), Shopping (omnichannel), Recebíveis (spread)
 
-RETORNE JSON COMPLETO.`,
+RETORNE JSON SIMPLES.`,
       },
       {
         role: "user",
-        content: `Análise mercado FIIs para perfil ${userProfile.riskProfile} | ${userProfile.investmentGoal}
+        content: `Analise mercado FIIs para perfil ${userProfile.riskProfile} | ${userProfile.investmentGoal}
 
 JSON:
 {
-  "marketOverview": {
-    "currentScenario": "cenário atual",
-    "keyTrends": ["trend1", "trend2"],
-    "opportunities": ["opp1", "opp2"],
-    "risks": ["risk1", "risk2"]
+  "marketSentiment": "POSITIVO|NEUTRO|NEGATIVO",
+  "outlook": "análise cenário atual em uma frase",
+  "keyTrends": ["trend1", "trend2", "trend3", "trend4"],
+  "sectorOutlook": {
+    "Logística": "perspectiva setor",
+    "Corporativo": "perspectiva setor",
+    "Shoppings": "perspectiva setor",
+    "Recebíveis": "perspectiva setor"
   },
-  "outlook": {
-    "next12Months": "perspectivas 12m",
-    "expectedReturns": "retornos esperados"
-  }
+  "opportunities": ["opp1", "opp2", "opp3"],
+  "risks": ["risk1", "risk2", "risk3"]
 }`,
       },
     ];
 
     const response = await this.makeRequest(messages, 0.2);
     let cleanResponse = response.trim();
+
     if (cleanResponse.startsWith("```json")) {
       cleanResponse = cleanResponse
         .replace(/```json\s*/, "")
@@ -353,6 +358,7 @@ JSON:
         .replace(/```\s*/, "")
         .replace(/```\s*$/, "");
     }
+
     return JSON.parse(cleanResponse);
   }
 }
@@ -362,32 +368,21 @@ export const AIProvider = ({ children }) => {
   const { user } = useAuth();
   const [openAIManager] = useState(() => new OpenAIManager());
   const [isConfigured, setIsConfigured] = useState(false);
-  const [userSettings, setUserSettings] = useState({
-    openai_api_key: "",
-    brapi_token: "",
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // 🔄 Carregar configurações do usuário do Supabase
+  // 🔧 Carregar configurações do Supabase
   useEffect(() => {
     if (user) {
       loadUserSettings();
-    } else {
-      setIsLoading(false);
-      setIsConfigured(false);
-      setUserSettings({ openai_api_key: "", brapi_token: "" });
     }
   }, [user]);
 
-  // 📥 Carregar configurações do Supabase
   const loadUserSettings = async () => {
     try {
-      setIsLoading(true);
-      console.log("🔄 [AIContext] Carregando configurações do usuário...");
-
       const { data, error } = await supabase
         .from("user_settings")
-        .select("*")
+        .select("openai_api_key, brapi_token")
         .eq("user_id", user.id)
         .single();
 
@@ -395,166 +390,169 @@ export const AIProvider = ({ children }) => {
         throw error;
       }
 
-      if (data) {
-        console.log("✅ [AIContext] Configurações carregadas:", {
-          openai_configured: !!data.openai_api_key,
-          brapi_configured: !!data.brapi_token,
-        });
-
-        setUserSettings({
-          openai_api_key: data.openai_api_key || "",
-          brapi_token: data.brapi_token || "",
-        });
-
-        if (data.openai_api_key) {
-          openAIManager.setApiKey(data.openai_api_key);
-          setIsConfigured(true);
-        } else {
-          setIsConfigured(false);
-        }
-      } else {
-        console.log("📝 [AIContext] Nenhuma configuração encontrada");
-        setUserSettings({ openai_api_key: "", brapi_token: "" });
-        setIsConfigured(false);
+      if (data?.openai_api_key) {
+        openAIManager.setApiKey(data.openai_api_key);
+        setIsConfigured(true);
       }
-    } catch (err) {
-      console.error("❌ [AIContext] Erro ao carregar configurações:", err);
-      setUserSettings({ openai_api_key: "", brapi_token: "" });
-      setIsConfigured(false);
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      console.error("Erro ao carregar configurações:", error);
     }
   };
 
-  // 🔧 Funções para gerenciar API key
+  // 🔧 Salvar API key no Supabase
   const setApiKey = async (key) => {
     try {
-      console.log("💾 [AIContext] Configurando API key...");
+      if (!user) {
+        throw new Error("Usuário não autenticado");
+      }
 
-      const { data, error } = await supabase
-        .from("user_settings")
-        .upsert(
-          {
-            user_id: user.id,
-            openai_api_key: key,
-            brapi_token: userSettings.brapi_token,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        )
-        .select()
-        .single();
+      const { error } = await supabase.from("user_settings").upsert(
+        {
+          user_id: user.id,
+          openai_api_key: key,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "user_id",
+        }
+      );
 
       if (error) throw error;
 
       openAIManager.setApiKey(key);
-      setUserSettings((prev) => ({ ...prev, openai_api_key: key }));
       setIsConfigured(!!key);
-
-      console.log("✅ [AIContext] API key configurada com sucesso");
-    } catch (err) {
-      console.error("❌ [AIContext] Erro ao configurar API key:", err);
-      throw err;
+      console.log("✅ API key salva no Supabase");
+    } catch (error) {
+      console.error("❌ Erro ao salvar API key:", error);
+      throw error;
     }
   };
 
+  // 🔧 Remover API key do Supabase
   const removeApiKey = async () => {
     try {
-      console.log("🗑️ [AIContext] Removendo API key...");
+      if (!user) {
+        throw new Error("Usuário não autenticado");
+      }
 
-      const { data, error } = await supabase
-        .from("user_settings")
-        .upsert(
-          {
-            user_id: user.id,
-            openai_api_key: "",
-            brapi_token: userSettings.brapi_token,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        )
-        .select()
-        .single();
+      const { error } = await supabase.from("user_settings").upsert(
+        {
+          user_id: user.id,
+          openai_api_key: null,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "user_id",
+        }
+      );
 
       if (error) throw error;
 
       openAIManager.setApiKey(null);
-      setUserSettings((prev) => ({ ...prev, openai_api_key: "" }));
       setIsConfigured(false);
-
-      console.log("✅ [AIContext] API key removida com sucesso");
-    } catch (err) {
-      console.error("❌ [AIContext] Erro ao remover API key:", err);
-      throw err;
+      console.log("✅ API key removida do Supabase");
+    } catch (error) {
+      console.error("❌ Erro ao remover API key:", error);
+      throw error;
     }
+  };
+
+  // 🔧 Obter BRAPI token do Supabase
+  const getBrapiToken = () => {
+    // Implementação para obter token do Supabase
+    // Por enquanto, retorna null para usar fallback
+    return null;
   };
 
   const getApiKey = () => {
-    return userSettings.openai_api_key;
+    return openAIManager.getApiKey();
   };
 
-  const getBrapiToken = () => {
-    return userSettings.brapi_token;
+  const clearError = () => {
+    setError(null);
   };
 
-  // 🤖 Funções da IA
-  const analyzeFII = async (fiiData, userProfile) => {
-    if (!isConfigured) {
-      throw new Error(
-        "OpenAI não configurada. Configure sua API key nas configurações."
-      );
-    }
-    return await openAIManager.analyzeFII(fiiData, userProfile);
-  };
-
-  const analyzePortfolio = async (portfolio, userProfile) => {
-    if (!isConfigured) {
-      throw new Error(
-        "OpenAI não configurada. Configure sua API key nas configurações."
-      );
-    }
-    return await openAIManager.analyzePortfolio(portfolio, userProfile);
-  };
-
+  // 🎯 Funções principais da IA
   const generateInvestmentSuggestions = async (
     eligibleFIIs,
     userProfile,
     currentPortfolio = []
   ) => {
-    if (!isConfigured) {
-      throw new Error(
-        "OpenAI não configurada. Configure sua API key nas configurações."
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await openAIManager.generateInvestmentSuggestions(
+        eligibleFIIs,
+        userProfile,
+        currentPortfolio
       );
+      return result;
+    } catch (error) {
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
     }
-    return await openAIManager.generateInvestmentSuggestions(
-      eligibleFIIs,
-      userProfile,
-      currentPortfolio
-    );
+  };
+
+  const analyzeFII = async (fiiData, userProfile) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await openAIManager.analyzeFII(fiiData, userProfile);
+      return result;
+    } catch (error) {
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const analyzePortfolio = async (portfolio, userProfile) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await openAIManager.analyzePortfolio(
+        portfolio,
+        userProfile
+      );
+      return result;
+    } catch (error) {
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const generateMarketAnalysis = async (userProfile) => {
-    if (!isConfigured) {
-      throw new Error(
-        "OpenAI não configurada. Configure sua API key nas configurações."
-      );
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await openAIManager.generateMarketAnalysis(userProfile);
+      return result;
+    } catch (error) {
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
     }
-    return await openAIManager.generateMarketAnalysis(userProfile);
   };
 
   const value = {
     isConfigured,
-    isLoading,
-    userSettings,
+    loading,
+    error,
     setApiKey,
     removeApiKey,
     getApiKey,
     getBrapiToken,
+    generateInvestmentSuggestions,
     analyzeFII,
     analyzePortfolio,
-    generateInvestmentSuggestions,
     generateMarketAnalysis,
-    loadUserSettings,
+    clearError,
   };
 
   return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
@@ -563,9 +561,7 @@ export const AIProvider = ({ children }) => {
 export const useAI = () => {
   const context = useContext(AIContext);
   if (context === undefined) {
-    throw new Error("useAI deve ser usado dentro de um AIProvider");
+    throw new Error("useAI must be used within an AIProvider");
   }
   return context;
 };
-
-export default AIContext;

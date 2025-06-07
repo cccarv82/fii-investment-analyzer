@@ -44,6 +44,50 @@ const Investment = () => {
     useAI();
   const { addInvestment, positions } = usePortfolio();
 
+  // ✅ CORREÇÃO 1: Função para calcular valor total real
+  const calculateRealTotal = () => {
+    if (!suggestions?.suggestions) return 0;
+
+    return suggestions.suggestions.reduce((total, suggestion) => {
+      const shares = suggestion.shares || 0;
+      const price = suggestion.price || 0;
+      return total + shares * price;
+    }, 0);
+  };
+
+  // ✅ CORREÇÃO 4: Função para calcular retorno esperado realista
+  const calculateExpectedReturn = () => {
+    if (!suggestions?.suggestions || suggestions.suggestions.length === 0) {
+      return {
+        dividendYield: 0,
+        appreciation: 7,
+        total: 7,
+        breakdown: "Aguardando análise...",
+      };
+    }
+
+    // DY médio da carteira
+    const avgDY =
+      suggestions.suggestions.reduce((sum, fii) => {
+        return sum + (fii.dividendYield || 0);
+      }, 0) / suggestions.suggestions.length;
+
+    // Valorização esperada conservadora (5-10%)
+    const expectedAppreciation = 7; // 7% ao ano
+
+    // Retorno total
+    const totalReturn = avgDY + expectedAppreciation;
+
+    return {
+      dividendYield: avgDY,
+      appreciation: expectedAppreciation,
+      total: totalReturn,
+      breakdown: `DY ${avgDY.toFixed(
+        1
+      )}% + Valorização ${expectedAppreciation}% = ${totalReturn.toFixed(1)}%`,
+    };
+  };
+
   // 🔍 FUNÇÃO DE DEBUG DETALHADO
   const debugFIIData = (fiis, step) => {
     console.log(`\\n🔍 DEBUG ${step}:`);
@@ -448,10 +492,10 @@ const Investment = () => {
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-primary">
-                        {formatCurrency(suggestions.formData?.amount || 0)}
+                        {formatCurrency(calculateRealTotal())}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Valor Total
+                        Valor Total Real
                       </div>
                     </div>
                     <div className="text-center">
@@ -505,9 +549,31 @@ const Investment = () => {
                       </div>
                       <div>
                         <h4 className="font-medium mb-2">Retorno Esperado</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {suggestions.portfolioStrategy.expectedReturn}
-                        </p>
+                        <div className="space-y-2">
+                          <p className="text-lg font-semibold text-primary">
+                            {calculateExpectedReturn().total.toFixed(1)}% ao ano
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {calculateExpectedReturn().breakdown}
+                          </p>
+                          <div className="text-xs text-muted-foreground">
+                            <p>
+                              • Dividend Yield médio:{" "}
+                              {calculateExpectedReturn().dividendYield.toFixed(
+                                1
+                              )}
+                              %
+                            </p>
+                            <p>
+                              • Valorização esperada:{" "}
+                              {calculateExpectedReturn().appreciation}%
+                            </p>
+                            <p>
+                              • Estimativa conservadora baseada na carteira
+                              selecionada
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </CardContent>

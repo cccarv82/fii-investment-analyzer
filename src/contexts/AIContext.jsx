@@ -86,7 +86,7 @@ JSON:
   "reasoning": "análise 200-300 palavras",
   "strengths": ["força1", "força2", "força3"],
   "weaknesses": ["fraco1", "fraco2"],
-  "targetPrice": preço-alvo,
+  "targetPrice": "preço-alvo 12m (máximo 20% acima do atual)",
   "riskLevel": "BAIXO|MÉDIO|ALTO",
   "suitability": 0-10
 }`,
@@ -180,7 +180,7 @@ EXPERTISE ELITE:
 
 METODOLOGIA SUPREMA:
 1. FILTROS QUANTITATIVOS:
-- DY: Min 6% (superar Selic 10.75%)
+- DY: Min 6% (competitivo vs Selic 10.75%)
 - P/VP: Max 1.3 tijolo, 1.5 recebíveis
 - Liquidez: >100k/dia, Consistência: 12+ meses
 - ROE: DY/P/VP > 5%
@@ -192,7 +192,7 @@ METODOLOGIA SUPREMA:
 - Moat: Vantagem competitiva sustentável
 
 3. CONTEXTO MACRO 2025:
-- Selic 10.75%: FIIs devem DY>12% total return
+- Selic 10.75%: FIIs com DY 6-10% + valorização podem competir
 - Inflação 4.5%: Reajustes IPCA+ essenciais
 - E-commerce: Logística last-mile premium
 - Híbrido: Corporativo AAA > genérico
@@ -255,14 +255,14 @@ JSON (4 FIIs obrigatório):
       "reasoning": "análise 150-200 palavras Buffett+Dalio+Lynch+macro",
       "strengths": ["força1", "força2", "força3"],
       "risks": ["risco1", "risco2"],
-      "targetPrice": preço-alvo,
+      "targetPrice": "preço-alvo 12m (máximo 20% acima do atual)",
       "timeHorizon": "prazo"
     }
   ],
   "portfolioStrategy": {
     "overallApproach": "estratégia geral",
     "diversification": "análise diversificação",
-    "expectedReturn": "retorno anual esperado"
+    "expectedReturn": "calcule: (DY médio da carteira + valorização esperada 5-15%) com justificativa baseada nos FIIs selecionados"
   },
   "marketAnalysis": {
     "currentScenario": "cenário FIIs vs Selic",

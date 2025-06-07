@@ -227,7 +227,7 @@ RETORNE JSON com esta estrutura:
     return JSON.parse(response);
   }
 
-  // 🎯 PROMPT MASTER: Geração de carteira otimizada
+  // 🔧 PROMPT CORRIGIDO: Geração de carteira otimizada (GARANTIA DE JSON)
   async generateInvestmentSuggestions(params) {
     const { amount, riskProfile, investmentGoal, timeHorizon, availableFiis } =
       params;
@@ -235,109 +235,107 @@ RETORNE JSON com esta estrutura:
     const messages = [
       {
         role: "system",
-        content: `Você é Harry Markowitz + Warren Buffett criando a carteira PERFEITA de FIIs brasileiros.
+        content: `Você é um especialista em FIIs brasileiros. Sua ÚNICA tarefa é retornar um JSON válido.
 
-MISSÃO: Criar carteira otimizada que maximize retorno ajustado ao risco usando Modern Portfolio Theory + Value Investing.
+REGRAS CRÍTICAS:
+1. RETORNE APENAS JSON VÁLIDO - SEM TEXTO ADICIONAL
+2. NÃO inclua explicações, desculpas ou comentários
+3. NÃO use markdown ou formatação
+4. SEMPRE retorne o JSON na estrutura exata solicitada
 
-PRINCÍPIOS FUNDAMENTAIS:
+METODOLOGIA:
+- Diversificação inteligente (máximo 25% por FII)
+- Seleção baseada em DY, P/VP e qualidade
+- Alocação por perfil de risco
+- Uso de 90%+ do valor disponível
 
-1. DIVERSIFICAÇÃO INTELIGENTE:
-   - Máximo 20% em qualquer FII individual
-   - Máximo 35% em qualquer setor
-   - Mínimo 5 FIIs diferentes (para valores acima de R$ 1.000)
-   - Correlação baixa entre ativos
-
-2. CRITÉRIOS DE SELEÇÃO (Buffett Style):
-   - P/VP atrativo (preferencialmente < 1.0)
-   - Dividend Yield sustentável (6-12%)
-   - Histórico consistente de distribuições
-   - Qualidade dos ativos subjacentes
-   - Gestão competente e transparente
-
-3. ALOCAÇÃO POR PERFIL:
-
-CONSERVADOR:
-- 40% Logística (estabilidade)
-- 25% Corporativo AAA (inquilinos sólidos)
-- 20% Recebíveis baixo risco
-- 15% Shoppings regionais
-
-MODERADO:
-- 35% Logística
-- 25% Corporativo
-- 25% Recebíveis
-- 15% Shoppings/Híbridos
-
-ARROJADO:
-- 30% Logística
-- 20% Corporativo
-- 30% Recebíveis alto yield
-- 20% Setores emergentes
-
-4. OTIMIZAÇÃO MATEMÁTICA:
-   - Minimizar variância para dado retorno esperado
-   - Maximizar Sharpe Ratio
-   - Considerar custos de transação
-   - Rebalanceamento trimestral
-
-RETORNE CARTEIRA OTIMIZADA EM JSON.`,
+PERFIS DE ALOCAÇÃO:
+CONSERVADOR: Logística 40%, Corporativo 30%, Recebíveis 20%, Outros 10%
+MODERADO: Logística 35%, Corporativo 25%, Recebíveis 25%, Outros 15%
+ARROJADO: Logística 30%, Corporativo 20%, Recebíveis 30%, Outros 20%`,
       },
       {
         role: "user",
-        content: `Crie carteira PERFEITA com estes parâmetros:
+        content: `Crie carteira para:
 
-VALOR DISPONÍVEL: R$ ${amount.toLocaleString()}
-PERFIL DE RISCO: ${riskProfile}
+VALOR: R$ ${amount.toLocaleString()}
+PERFIL: ${riskProfile}
 OBJETIVO: ${investmentGoal}
 PRAZO: ${timeHorizon}
 
 FIIs DISPONÍVEIS:
 ${availableFiis
+  .slice(0, 20) // Limitar para evitar prompt muito longo
   .map(
     (fii) =>
-      `- ${fii.ticker} (${fii.name}): R$ ${fii.price} | DY: ${fii.dividendYield}% | P/VP: ${fii.pvp} | Setor: ${fii.sector}`
+      `${fii.ticker}: R$ ${fii.price} | DY: ${fii.dividendYield}% | P/VP: ${fii.pvp} | ${fii.sector}`
   )
   .join("\n")}
 
-CRITÉRIOS OBRIGATÓRIOS:
-- Use 90%+ do valor disponível
-- Máximo 20% em qualquer FII
-- Mínimo 3 FIIs diferentes
-- Diversificação setorial
-
-RETORNE JSON com esta estrutura EXATA:
+RETORNE APENAS ESTE JSON (sem texto adicional):
 {
   "suggestions": [
     {
-      "ticker": "código do FII",
-      "name": "nome do FII",
-      "shares": número de cotas,
-      "investmentAmount": valor em reais,
-      "percentage": porcentagem do total,
-      "reasoning": "justificativa da escolha",
-      "expectedYield": dividend yield esperado,
-      "riskLevel": "BAIXO" | "MÉDIO" | "ALTO",
-      "sector": "setor do FII"
+      "ticker": "CÓDIGO",
+      "name": "Nome do FII",
+      "shares": número_de_cotas,
+      "investmentAmount": valor_em_reais,
+      "percentage": porcentagem_do_total,
+      "reasoning": "justificativa_breve",
+      "expectedYield": dividend_yield,
+      "riskLevel": "BAIXO|MÉDIO|ALTO",
+      "sector": "setor"
     }
   ],
-  "totalInvested": valor total investido,
-  "totalShares": total de cotas,
-  "averageYield": dividend yield médio,
-  "diversificationScore": nota de 0 a 10,
-  "riskScore": nota de 0 a 10,
-  "strategy": "explicação da estratégia utilizada",
-  "expectedReturn": retorno esperado anual,
+  "totalInvested": valor_total_investido,
+  "averageYield": dividend_yield_médio,
+  "diversificationScore": nota_0_a_10,
+  "strategy": "estratégia_utilizada",
   "portfolioAnalysis": {
-    "strengths": ["força 1", "força 2"],
-    "risks": ["risco 1", "risco 2"],
-    "sectorAllocation": {"setor": "porcentagem"}
+    "strengths": ["força_1", "força_2"],
+    "expectedReturn": retorno_esperado_anual
   }
 }`,
       },
     ];
 
-    const response = await this.makeRequest(messages, 0.7);
-    return JSON.parse(response);
+    const response = await this.makeRequest(messages, 0.1); // Temperatura baixa para consistência
+
+    // 🔧 VALIDAÇÃO E LIMPEZA DO RESPONSE
+    let cleanResponse = response.trim();
+
+    // Remover possível markdown
+    if (cleanResponse.startsWith("```json")) {
+      cleanResponse = cleanResponse
+        .replace(/```json\n?/, "")
+        .replace(/\n?```$/, "");
+    }
+    if (cleanResponse.startsWith("```")) {
+      cleanResponse = cleanResponse
+        .replace(/```\n?/, "")
+        .replace(/\n?```$/, "");
+    }
+
+    // Remover texto antes do JSON
+    const jsonStart = cleanResponse.indexOf("{");
+    if (jsonStart > 0) {
+      cleanResponse = cleanResponse.substring(jsonStart);
+    }
+
+    // Remover texto após o JSON
+    const jsonEnd = cleanResponse.lastIndexOf("}");
+    if (jsonEnd > 0 && jsonEnd < cleanResponse.length - 1) {
+      cleanResponse = cleanResponse.substring(0, jsonEnd + 1);
+    }
+
+    try {
+      return JSON.parse(cleanResponse);
+    } catch (error) {
+      console.error("Erro ao fazer parse do JSON da IA:", error);
+      console.error("Response original:", response);
+      console.error("Response limpo:", cleanResponse);
+      throw new Error("IA retornou resposta inválida. Tente novamente.");
+    }
   }
 
   // 🎯 PROMPT MASTER: Análise de mercado

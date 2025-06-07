@@ -9,7 +9,6 @@ import {
   RefreshCw,
   ExternalLink,
 } from "lucide-react";
-
 import {
   Card,
   CardContent,
@@ -26,7 +25,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "../components/ui/tabs";
-
 import { useAI } from "../contexts/AIContext";
 import { usePortfolio } from "../contexts/PortfolioContext";
 
@@ -53,7 +51,6 @@ const Analysis = () => {
     setAnalysisLoading(true);
     try {
       console.log("🔄 Carregando análise de mercado...");
-
       // ✅ CORREÇÃO: Usar função correta e passar dados mock se necessário
       const mockMarketData = {
         selic: 10.75,
@@ -68,7 +65,6 @@ const Analysis = () => {
       console.log("✅ Análise de mercado carregada:", analysis);
     } catch (error) {
       console.error("❌ Erro ao carregar análise de mercado:", error);
-
       // ✅ Fallback com dados simulados
       setMarketAnalysis({
         marketSentiment: "NEUTRO",
@@ -113,7 +109,6 @@ const Analysis = () => {
     setAnalysisLoading(true);
     try {
       console.log("🔄 Carregando análise de carteira...");
-
       const userProfile = {
         riskProfile: "moderado",
         investmentGoal: "equilibrado",
@@ -125,7 +120,6 @@ const Analysis = () => {
       console.log("✅ Análise de carteira carregada:", analysis);
     } catch (error) {
       console.error("❌ Erro ao carregar análise de carteira:", error);
-
       // ✅ Fallback com dados simulados
       setPortfolioAnalysis({
         overallScore: 7.5,
@@ -161,7 +155,6 @@ const Analysis = () => {
   useEffect(() => {
     console.log("🚀 Iniciando carregamento de análises...");
     loadMarketAnalysis();
-
     if (positions && positions.length > 0) {
       loadPortfolioAnalysis();
     }
@@ -320,7 +313,9 @@ const Analysis = () => {
                             {sector}
                           </h4>
                           <p className="text-sm text-muted-foreground">
-                            {outlook}
+                            {typeof outlook === "string"
+                              ? outlook
+                              : JSON.stringify(outlook)}
                           </p>
                         </div>
                       )
@@ -405,6 +400,7 @@ const Analysis = () => {
                       </div>
                     </CardContent>
                   </Card>
+
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm font-medium">
@@ -417,6 +413,7 @@ const Analysis = () => {
                       </div>
                     </CardContent>
                   </Card>
+
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm font-medium">
@@ -435,7 +432,7 @@ const Analysis = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5" />
+                      <Lightbulb className="h-5 w-5 text-yellow-600" />
                       Recomendações
                     </CardTitle>
                   </CardHeader>
@@ -510,7 +507,7 @@ const Analysis = () => {
                             key={index}
                             className="flex items-center gap-3 p-3 border rounded-lg"
                           >
-                            <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                            <div className="w-2 h-2 rounded-full bg-blue-600 mt-2"></div>
                             <p className="text-sm">{action}</p>
                           </div>
                         )
@@ -535,18 +532,10 @@ const Analysis = () => {
             <Card>
               <CardContent className="flex items-center justify-center py-12">
                 <div className="text-center space-y-4">
-                  <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto" />
-                  <div>
-                    <h3 className="text-lg font-medium">
-                      Nenhuma posição encontrada
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Adicione FIIs à sua carteira para ver análises detalhadas
-                    </p>
-                  </div>
-                  <Button asChild>
-                    <a href="/portfolio">Gerenciar Carteira</a>
-                  </Button>
+                  <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <p className="text-muted-foreground">
+                    Carregando análise de mercado...
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -559,39 +548,35 @@ const Analysis = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Brain className="h-5 w-5" />
-                Insights Inteligentes
+                Insights Personalizados
               </CardTitle>
               <CardDescription>
-                Análises avançadas e recomendações personalizadas
+                Análises baseadas no seu perfil e carteira atual
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium mb-2">💡 Dica do Momento</h4>
+                  <h4 className="font-medium mb-2">💡 Dica do Dia</h4>
                   <p className="text-sm text-muted-foreground">
-                    Com a Selic em 10,75%, FIIs precisam oferecer yield superior
-                    a 11% para serem atrativos. Considere FIIs de recebíveis que
-                    se beneficiam do spread bancário elevado.
+                    Com a Selic em 10,75%, considere FIIs de recebíveis que se
+                    beneficiam dos spreads bancários elevados.
                   </p>
                 </div>
 
                 <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium mb-2">📊 Análise Macro</h4>
+                  <h4 className="font-medium mb-2">📈 Tendência Semanal</h4>
                   <p className="text-sm text-muted-foreground">
-                    O setor logístico continua beneficiado pelo crescimento do
-                    e-commerce (+15% a.a.) e tendências de nearshoring. FIIs
-                    logísticos em regiões estratégicas apresentam potencial de
-                    valorização.
+                    FIIs logísticos têm apresentado performance superior devido
+                    ao crescimento do e-commerce e nearshoring.
                   </p>
                 </div>
 
                 <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium mb-2">⚠️ Atenção</h4>
+                  <h4 className="font-medium mb-2">⚠️ Alerta de Mercado</h4>
                   <p className="text-sm text-muted-foreground">
-                    FIIs corporativos enfrentam desafios estruturais com o
-                    trabalho híbrido permanente. Prefira fundos com contratos
-                    longos e inquilinos de alta qualidade.
+                    Monitore FIIs corporativos devido ao impacto permanente do
+                    trabalho híbrido nas taxas de ocupação.
                   </p>
                 </div>
               </div>

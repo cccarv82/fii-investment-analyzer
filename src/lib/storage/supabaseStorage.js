@@ -63,6 +63,7 @@ class SupabaseStorage {
         .single();
 
       if (error) throw error;
+
       return {
         ...data,
         investments: [],
@@ -89,6 +90,7 @@ class SupabaseStorage {
         .single();
 
       if (error) throw error;
+
       return data;
     } catch (error) {
       console.error("Erro ao atualizar carteira:", error);
@@ -106,6 +108,7 @@ class SupabaseStorage {
         .eq("user_id", this.userId);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error("Erro ao deletar carteira:", error);
@@ -115,7 +118,7 @@ class SupabaseStorage {
 
   // 💰 OPERAÇÕES DE INVESTIMENTO
 
-  // Adicionar investimento
+  // ✅ CORREÇÃO: Adicionar investimento com campo correto
   async addInvestment(portfolioId, investmentData) {
     try {
       const { data, error } = await supabase
@@ -138,7 +141,8 @@ class SupabaseStorage {
               (investmentData.shares || 0) *
               (investmentData.current_price || investmentData.price || 0),
             dividend_yield: investmentData.dividend_yield || 0,
-            pvp_ratio: investmentData.pvp_ratio || investmentData.pvp || 0,
+            // ✅ CORREÇÃO CRÍTICA: Usar 'pvp' em vez de 'pvp_ratio'
+            pvp: investmentData.pvp || investmentData.pvp_ratio || 0,
             is_active: true,
             created_at: new Date().toISOString(),
           },
@@ -147,6 +151,7 @@ class SupabaseStorage {
         .single();
 
       if (error) throw error;
+
       return data;
     } catch (error) {
       console.error("Erro ao adicionar investimento:", error);
@@ -168,6 +173,7 @@ class SupabaseStorage {
         .single();
 
       if (error) throw error;
+
       return data;
     } catch (error) {
       console.error("Erro ao atualizar investimento:", error);
@@ -184,6 +190,7 @@ class SupabaseStorage {
         .eq("id", investmentId);
 
       if (error) throw error;
+
       return true;
     } catch (error) {
       console.error("Erro ao remover investimento:", error);
@@ -213,6 +220,7 @@ class SupabaseStorage {
         .single();
 
       if (error) throw error;
+
       return data;
     } catch (error) {
       console.error("Erro ao adicionar dividendo:", error);
@@ -230,6 +238,7 @@ class SupabaseStorage {
         .order("payment_date", { ascending: false });
 
       if (error) throw error;
+
       return data || [];
     } catch (error) {
       console.error("Erro ao obter dividendos:", error);
@@ -258,6 +267,7 @@ class SupabaseStorage {
         .order("payment_date", { ascending: false });
 
       if (error) throw error;
+
       return data || [];
     } catch (error) {
       console.error("Erro ao obter todos os dividendos:", error);
@@ -287,10 +297,12 @@ class SupabaseStorage {
       (sum, inv) => sum + (inv.total_invested || 0),
       0
     );
+
     const currentValue = activeInvestments.reduce(
       (sum, inv) => sum + (inv.current_value || inv.total_invested || 0),
       0
     );
+
     const totalReturn = currentValue - totalInvested;
     const returnPercentage =
       totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;

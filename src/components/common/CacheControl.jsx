@@ -9,7 +9,7 @@ import {
   AlertCircle,
   Info,
   Zap,
-  Compress
+  Archive
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -158,7 +158,7 @@ const CacheControl = ({ onRefresh, isLoading = false }) => {
                 </Badge>
                 {cacheStats?.compressed && (
                   <Badge variant="outline" className="text-xs">
-                    <Compress className="h-3 w-3 mr-1" />
+                    <Archive className="h-3 w-3 mr-1" />
                     Comprimido
                   </Badge>
                 )}

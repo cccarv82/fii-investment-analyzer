@@ -768,9 +768,19 @@ class FIIDataManager {
         return null;
       }
 
+      // ✅ VALIDAÇÃO CRÍTICA: Só processar FIIs com preço real válido
+      const price = parseFloat(rawData.regularMarketPrice);
+      if (!price || price <= 0) {
+        console.warn(
+          `⚠️ ${rawData.symbol}: Preço inválido (${rawData.regularMarketPrice}), rejeitando`
+        );
+        return null;
+      }
+
+      console.log(`💰 ${rawData.symbol}: R$ ${price.toFixed(2)} (BRAPI)`);
+
       // Calcular dividend yield
       let dividendYield = 0;
-      const price = parseFloat(rawData.regularMarketPrice) || 0;
 
       if (price > 0) {
         // Método 1: Dividendos dos últimos 12 meses

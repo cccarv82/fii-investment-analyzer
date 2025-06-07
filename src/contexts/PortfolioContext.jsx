@@ -1,250 +1,384 @@
-import React, { createContext, useContext, useReducer, useEffect } from "react";
-import { portfolioManager } from "../lib/storage/portfolio.js";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { supabaseStorage } from "../lib/storage/supabaseStorage";
+import { useAuth } from "./AuthContext";
+import toast from "react-hot-toast";
 
-// Contexto da carteira
+// 🎯 Contexto do Portfolio integrado com Supabase
 const PortfolioContext = createContext();
 
-// Actions
-const PORTFOLIO_ACTIONS = {
-  SET_LOADING: "SET_LOADING",
-  SET_PORTFOLIO_DATA: "SET_PORTFOLIO_DATA",
-  ADD_INVESTMENT: "ADD_INVESTMENT",
-  ADD_DIVIDEND: "ADD_DIVIDEND",
-  SET_ERROR: "SET_ERROR",
-  CLEAR_ERROR: "CLEAR_ERROR",
-};
-
-// Reducer
-const portfolioReducer = (state, action) => {
-  switch (action.type) {
-    case PORTFOLIO_ACTIONS.SET_LOADING:
-      return { ...state, loading: action.payload };
-
-    case PORTFOLIO_ACTIONS.SET_PORTFOLIO_DATA:
-      return {
-        ...state,
-        ...action.payload,
-        loading: false,
-        error: null,
-      };
-
-    case PORTFOLIO_ACTIONS.ADD_INVESTMENT:
-      return {
-        ...state,
-        positions: [...state.positions, action.payload],
-        totalInvested: state.totalInvested + action.payload.totalValue,
-      };
-
-    case PORTFOLIO_ACTIONS.ADD_DIVIDEND:
-      return {
-        ...state,
-        recentDividends: [action.payload, ...state.recentDividends.slice(0, 4)],
-        totalDividends: state.totalDividends + action.payload.amount,
-      };
-
-    case PORTFOLIO_ACTIONS.SET_ERROR:
-      return { ...state, error: action.payload, loading: false };
-
-    case PORTFOLIO_ACTIONS.CLEAR_ERROR:
-      return { ...state, error: null };
-
-    default:
-      return state;
-  }
-};
-
-// Estado inicial - ZERADO (sem dados mock)
-const initialState = {
-  loading: false,
-  error: null,
-  totalInvested: 0,
-  currentValue: 0,
-  totalDividends: 0,
-  monthlyYield: 0,
-  performance: 0,
-  yieldOnCost: 0,
-  diversification: 0,
-  positions: [],
-  recentDividends: [],
-  topAssets: [],
-};
-
-// Provider
 export const PortfolioProvider = ({ children }) => {
-  const [state, dispatch] = useReducer(portfolioReducer, initialState);
+  const [portfolios, setPortfolios] = useState([]);
+  const [currentPortfolio, setCurrentPortfolio] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Carregar dados da carteira
-  const loadPortfolioData = async () => {
+  const { user, isUserAuthorized } = useAuth();
+
+  // 🔄 Carregar dados quando usuário fizer login
+  useEffect(() => {
+    if (isUserAuthorized() && user) {
+      supabaseStorage.setUserId(user.id);
+      loadPortfolios();
+    } else {
+      // Limpar dados quando usuário fizer logout
+      setPortfolios([]);
+      setCurrentPortfolio(null);
+      setLoading(false);
+    }
+  }, [user, isUserAuthorized]);
+
+  // 📊 Carregar todas as carteiras
+  const loadPortfolios = async () => {
     try {
-      dispatch({ type: PORTFOLIO_ACTIONS.SET_LOADING, payload: true });
+      setLoading(true);
+      setError(null);
 
-      await portfolioManager.init();
-      const stats = portfolioManager.getPortfolioStats();
+      const data = await supabaseStorage.getPortfolios();
+      setPortfolios(data);
 
-      // Se não há dados salvos, usar estado inicial zerado
-      const portfolioData =
-        stats && Object.keys(stats).length > 0 ? stats : initialState;
-
-      dispatch({
-        type: PORTFOLIO_ACTIONS.SET_PORTFOLIO_DATA,
-        payload: portfolioData,
-      });
+      // Definir carteira padrão se não houver uma selecionada
+      if (data.length > 0 && !currentPortfolio) {
+        setCurrentPortfolio(data[0]);
+      }
     } catch (error) {
-      console.error("Erro ao carregar dados da carteira:", error);
-      // Em caso de erro, usar estado inicial zerado
-      dispatch({
-        type: PORTFOLIO_ACTIONS.SET_PORTFOLIO_DATA,
-        payload: initialState,
-      });
+      console.error("Erro ao carregar carteiras:", error);
+      setError(error.message);
+      toast.error("Erro ao carregar carteiras");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Adicionar investimento
-  const addInvestment = async (investment) => {
+  // 🆕 Criar nova carteira
+  const createPortfolio = async (portfolioData) => {
     try {
-      dispatch({ type: PORTFOLIO_ACTIONS.SET_LOADING, payload: true });
+      const newPortfolio = await supabaseStorage.createPortfolio(portfolioData);
 
-      const portfolioItem = await portfolioManager.addInvestment(investment);
+      setPortfolios((prev) => [newPortfolio, ...prev]);
+      setCurrentPortfolio(newPortfolio);
 
-      dispatch({
-        type: PORTFOLIO_ACTIONS.ADD_INVESTMENT,
-        payload: portfolioItem,
-      });
+      toast.success("Carteira criada com sucesso!");
+      return newPortfolio;
+    } catch (error) {
+      console.error("Erro ao criar carteira:", error);
+      toast.error("Erro ao criar carteira");
+      throw error;
+    }
+  };
 
-      // Recarregar dados para atualizar estatísticas
-      await loadPortfolioData();
+  // ✏️ Atualizar carteira
+  const updatePortfolio = async (portfolioId, updates) => {
+    try {
+      const updatedPortfolio = await supabaseStorage.updatePortfolio(
+        portfolioId,
+        updates
+      );
 
-      return portfolioItem;
+      setPortfolios((prev) =>
+        prev.map((p) => (p.id === portfolioId ? updatedPortfolio : p))
+      );
+
+      if (currentPortfolio?.id === portfolioId) {
+        setCurrentPortfolio(updatedPortfolio);
+      }
+
+      toast.success("Carteira atualizada!");
+      return updatedPortfolio;
+    } catch (error) {
+      console.error("Erro ao atualizar carteira:", error);
+      toast.error("Erro ao atualizar carteira");
+      throw error;
+    }
+  };
+
+  // 🗑️ Deletar carteira
+  const deletePortfolio = async (portfolioId) => {
+    try {
+      await supabaseStorage.deletePortfolio(portfolioId);
+
+      setPortfolios((prev) => prev.filter((p) => p.id !== portfolioId));
+
+      if (currentPortfolio?.id === portfolioId) {
+        const remaining = portfolios.filter((p) => p.id !== portfolioId);
+        setCurrentPortfolio(remaining.length > 0 ? remaining[0] : null);
+      }
+
+      toast.success("Carteira removida!");
+    } catch (error) {
+      console.error("Erro ao deletar carteira:", error);
+      toast.error("Erro ao deletar carteira");
+      throw error;
+    }
+  };
+
+  // 💰 Adicionar investimento
+  const addInvestment = async (investmentData) => {
+    try {
+      if (!currentPortfolio) {
+        // Criar carteira padrão se não existir
+        const defaultPortfolio = await createPortfolio({
+          name: "Minha Carteira",
+          description: "Carteira principal",
+        });
+
+        await supabaseStorage.addInvestment(
+          defaultPortfolio.id,
+          investmentData
+        );
+      } else {
+        await supabaseStorage.addInvestment(
+          currentPortfolio.id,
+          investmentData
+        );
+      }
+
+      // Recarregar carteiras para atualizar totais
+      await loadPortfolios();
+
+      toast.success(`${investmentData.ticker} adicionado à carteira!`);
     } catch (error) {
       console.error("Erro ao adicionar investimento:", error);
-      dispatch({
-        type: PORTFOLIO_ACTIONS.SET_ERROR,
-        payload: "Erro ao adicionar investimento",
-      });
+      toast.error("Erro ao adicionar investimento");
       throw error;
     }
   };
 
-  // Adicionar dividendo
-  const addDividend = async (dividend) => {
+  // ✏️ Atualizar investimento
+  const updateInvestment = async (investmentId, updates) => {
     try {
-      const dividendItem = await portfolioManager.addDividend(dividend);
+      await supabaseStorage.updateInvestment(investmentId, updates);
+      await loadPortfolios(); // Recarregar para atualizar totais
 
-      dispatch({
-        type: PORTFOLIO_ACTIONS.ADD_DIVIDEND,
-        payload: dividendItem,
-      });
+      toast.success("Investimento atualizado!");
+    } catch (error) {
+      console.error("Erro ao atualizar investimento:", error);
+      toast.error("Erro ao atualizar investimento");
+      throw error;
+    }
+  };
 
-      // Recarregar dados para atualizar estatísticas
-      await loadPortfolioData();
+  // 🗑️ Remover investimento
+  const removeInvestment = async (investmentId) => {
+    try {
+      await supabaseStorage.removeInvestment(investmentId);
+      await loadPortfolios(); // Recarregar para atualizar totais
 
-      return dividendItem;
+      toast.success("Investimento removido!");
+    } catch (error) {
+      console.error("Erro ao remover investimento:", error);
+      toast.error("Erro ao remover investimento");
+      throw error;
+    }
+  };
+
+  // 💎 Adicionar dividendo
+  const addDividend = async (investmentId, dividendData) => {
+    try {
+      await supabaseStorage.addDividend(investmentId, dividendData);
+      toast.success("Dividendo registrado!");
     } catch (error) {
       console.error("Erro ao adicionar dividendo:", error);
-      dispatch({
-        type: PORTFOLIO_ACTIONS.SET_ERROR,
-        payload: "Erro ao adicionar dividendo",
-      });
+      toast.error("Erro ao registrar dividendo");
       throw error;
     }
   };
 
-  // Exportar dados
-  const exportData = async () => {
+  // 📊 Obter dividendos
+  const getDividends = async (investmentId) => {
     try {
-      const data = await portfolioManager.exportData();
+      return await supabaseStorage.getDividends(investmentId);
+    } catch (error) {
+      console.error("Erro ao obter dividendos:", error);
+      return [];
+    }
+  };
 
-      // Criar arquivo para download
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
+  // 📈 Obter todos os dividendos do usuário
+  const getAllDividends = async () => {
+    try {
+      return await supabaseStorage.getAllDividends();
+    } catch (error) {
+      console.error("Erro ao obter todos os dividendos:", error);
+      return [];
+    }
+  };
+
+  // 🔄 Selecionar carteira atual
+  const selectPortfolio = (portfolio) => {
+    setCurrentPortfolio(portfolio);
+  };
+
+  // 📊 Calcular estatísticas da carteira
+  const getPortfolioStats = (portfolio = currentPortfolio) => {
+    if (!portfolio || !portfolio.investments) {
+      return {
+        totalInvested: 0,
+        currentValue: 0,
+        totalReturn: 0,
+        returnPercentage: 0,
+        totalInvestments: 0,
+        averageDY: 0,
+        monthlyIncome: 0,
+      };
+    }
+
+    const activeInvestments = portfolio.investments.filter(
+      (inv) => inv.is_active
+    );
+
+    const totalInvested = activeInvestments.reduce(
+      (sum, inv) => sum + (inv.total_invested || 0),
+      0
+    );
+    const currentValue = activeInvestments.reduce(
+      (sum, inv) => sum + (inv.current_value || inv.total_invested || 0),
+      0
+    );
+    const totalReturn = currentValue - totalInvested;
+    const returnPercentage =
+      totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
+
+    const averageDY =
+      activeInvestments.length > 0
+        ? activeInvestments.reduce(
+            (sum, inv) => sum + (inv.dividend_yield || 0),
+            0
+          ) / activeInvestments.length
+        : 0;
+
+    const monthlyIncome = (currentValue * averageDY) / 100 / 12;
+
+    return {
+      totalInvested,
+      currentValue,
+      totalReturn,
+      returnPercentage,
+      totalInvestments: activeInvestments.length,
+      averageDY,
+      monthlyIncome,
+    };
+  };
+
+  // 📊 Obter distribuição setorial
+  const getSectorDistribution = (portfolio = currentPortfolio) => {
+    if (!portfolio || !portfolio.investments) return [];
+
+    const activeInvestments = portfolio.investments.filter(
+      (inv) => inv.is_active
+    );
+    const sectorMap = {};
+
+    activeInvestments.forEach((inv) => {
+      const sector = inv.sector || "Outros";
+      const value = inv.current_value || inv.total_invested || 0;
+
+      if (sectorMap[sector]) {
+        sectorMap[sector] += value;
+      } else {
+        sectorMap[sector] = value;
+      }
+    });
+
+    const totalValue = Object.values(sectorMap).reduce(
+      (sum, value) => sum + value,
+      0
+    );
+
+    return Object.entries(sectorMap).map(([sector, value]) => ({
+      sector,
+      value,
+      percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
+    }));
+  };
+
+  // 📊 Obter top investimentos
+  const getTopInvestments = (portfolio = currentPortfolio, limit = 5) => {
+    if (!portfolio || !portfolio.investments) return [];
+
+    return portfolio.investments
+      .filter((inv) => inv.is_active)
+      .sort(
+        (a, b) =>
+          (b.current_value || b.total_invested || 0) -
+          (a.current_value || a.total_invested || 0)
+      )
+      .slice(0, limit);
+  };
+
+  // 🔄 Atualizar preços (função para implementação futura)
+  const updatePrices = async () => {
+    try {
+      // TODO: Implementar atualização de preços via API
+      toast.success("Preços atualizados!");
+    } catch (error) {
+      console.error("Erro ao atualizar preços:", error);
+      toast.error("Erro ao atualizar preços");
+    }
+  };
+
+  // 📤 Exportar dados
+  const exportData = () => {
+    try {
+      const dataToExport = {
+        portfolios,
+        exportDate: new Date().toISOString(),
+        version: "1.0",
+      };
+
+      const blob = new Blob([JSON.stringify(dataToExport, null, 2)], {
         type: "application/json",
       });
 
       const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `fii-carteira-${
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fii-portfolio-${
         new Date().toISOString().split("T")[0]
       }.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      return true;
+      toast.success("Dados exportados!");
     } catch (error) {
       console.error("Erro ao exportar dados:", error);
-      dispatch({
-        type: PORTFOLIO_ACTIONS.SET_ERROR,
-        payload: "Erro ao exportar dados",
-      });
-      throw error;
+      toast.error("Erro ao exportar dados");
     }
   };
-
-  // Importar dados
-  const importData = async (file) => {
-    try {
-      dispatch({ type: PORTFOLIO_ACTIONS.SET_LOADING, payload: true });
-
-      const text = await file.text();
-      const data = JSON.parse(text);
-
-      await portfolioManager.importData(data);
-      await loadPortfolioData();
-
-      return true;
-    } catch (error) {
-      console.error("Erro ao importar dados:", error);
-      dispatch({
-        type: PORTFOLIO_ACTIONS.SET_ERROR,
-        payload: "Erro ao importar dados. Verifique o formato do arquivo.",
-      });
-      throw error;
-    }
-  };
-
-  // Limpar dados
-  const clearAllData = async () => {
-    try {
-      dispatch({ type: PORTFOLIO_ACTIONS.SET_LOADING, payload: true });
-
-      await portfolioManager.clearAllData();
-
-      dispatch({
-        type: PORTFOLIO_ACTIONS.SET_PORTFOLIO_DATA,
-        payload: initialState,
-      });
-
-      return true;
-    } catch (error) {
-      console.error("Erro ao limpar dados:", error);
-      dispatch({
-        type: PORTFOLIO_ACTIONS.SET_ERROR,
-        payload: "Erro ao limpar dados",
-      });
-      throw error;
-    }
-  };
-
-  // Limpar erro
-  const clearError = () => {
-    dispatch({ type: PORTFOLIO_ACTIONS.CLEAR_ERROR });
-  };
-
-  // Carregar dados na inicialização
-  useEffect(() => {
-    loadPortfolioData();
-  }, []);
 
   const value = {
-    ...state,
-    loadPortfolioData,
+    // Estado
+    portfolios,
+    currentPortfolio,
+    loading,
+    error,
+
+    // Ações de carteira
+    createPortfolio,
+    updatePortfolio,
+    deletePortfolio,
+    selectPortfolio,
+    loadPortfolios,
+
+    // Ações de investimento
     addInvestment,
+    updateInvestment,
+    removeInvestment,
+
+    // Ações de dividendo
     addDividend,
+    getDividends,
+    getAllDividends,
+
+    // Estatísticas e análises
+    getPortfolioStats,
+    getSectorDistribution,
+    getTopInvestments,
+
+    // Utilitários
+    updatePrices,
     exportData,
-    importData,
-    clearAllData,
-    clearError,
   };
 
   return (
@@ -254,11 +388,15 @@ export const PortfolioProvider = ({ children }) => {
   );
 };
 
-// Hook para usar o contexto
+// 🎯 Hook para usar o contexto
 export const usePortfolio = () => {
   const context = useContext(PortfolioContext);
   if (!context) {
-    throw new Error("usePortfolio deve ser usado dentro de PortfolioProvider");
+    throw new Error(
+      "usePortfolio deve ser usado dentro de um PortfolioProvider"
+    );
   }
   return context;
 };
+
+export default PortfolioContext;

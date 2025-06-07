@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-// 🎯 Contexto da IA com prompts de nível MUNDIAL
+// 🎯 Contexto da IA com prompts de nível MUNDIAL MELHORADOS
 const AIContext = createContext();
 
 // 🤖 Classe para gerenciar IA da OpenAI com estratégias de investimento de elite
@@ -28,7 +28,8 @@ class OpenAIManager {
   }
 
   // 🚀 Fazer requisição para OpenAI com tratamento robusto
-  async makeRequest(messages, temperature = 0.3) {
+  async makeRequest(messages, temperature = 0.1) {
+    // 🔧 Temperatura baixa para consistência
     if (!this.getApiKey()) {
       throw new Error("API key da OpenAI não configurada");
     }
@@ -43,7 +44,7 @@ class OpenAIManager {
         model: this.model,
         messages: messages,
         temperature: temperature,
-        max_tokens: 4000, // Aumentado para análises mais detalhadas
+        max_tokens: 4000,
         top_p: 0.9,
         frequency_penalty: 0.1,
         presence_penalty: 0.1,
@@ -61,7 +62,7 @@ class OpenAIManager {
     return data.choices[0].message.content;
   }
 
-  // 🎯 PROMPT MASTER: Análise fundamentalista de FII individual
+  // 🎯 PROMPT MASTER MELHORADO: Análise fundamentalista de FII individual
   async analyzeFII(fiiData, userProfile) {
     const messages = [
       {
@@ -70,42 +71,52 @@ class OpenAIManager {
 
 EXPERTISE: Combine as metodologias de Benjamin Graham (análise fundamentalista), Modern Portfolio Theory (Markowitz), e estratégias específicas do mercado brasileiro de FIIs.
 
-CONTEXTO BRASILEIRO: Considere cenário econômico atual, taxa Selic, inflação, mercado imobiliário brasileiro, regulamentação CVM, e características únicas dos FIIs brasileiros.
+CONTEXTO BRASILEIRO ATUAL (2025):
+- Taxa Selic: 10.75% (competição direta com FIIs)
+- IPCA: 4.5% (reajustes contratuais)
+- PIB: +2.1% (demanda por imóveis)
+- Mercado imobiliário: Recuperação pós-pandemia
+- Trabalho híbrido: Impacto em corporativo
+- E-commerce: Boom logístico
+- Nearshoring: Oportunidade industrial
 
-METODOLOGIA DE ANÁLISE:
+METODOLOGIA DE ANÁLISE DETALHADA:
 
-1. ANÁLISE QUANTITATIVA:
-   - P/VP (ideal: 0.80-1.20 para FIIs de tijolo, até 1.50 para recebíveis)
-   - Dividend Yield (mínimo 6% para competir com Selic)
-   - Consistência de distribuições (últimos 24 meses)
-   - Liquidez (volume médio diário)
-   - Crescimento patrimonial (últimos 5 anos)
+1. ANÁLISE QUANTITATIVA RIGOROSA:
+- P/VP: Ideal 0.80-1.20 (tijolo), até 1.50 (recebíveis)
+- Dividend Yield: Mínimo 6% para superar Selic
+- Consistência: 24 meses de distribuições
+- Liquidez: Volume médio diário > 100k
+- Crescimento patrimonial: 5 anos
+- ROE: Retorno sobre patrimônio
+- Debt/Equity: Estrutura de capital
 
-2. ANÁLISE QUALITATIVA:
-   - Qualidade dos ativos (localização, idade, inquilinos)
-   - Gestão (track record, transparência, estratégia)
-   - Setor (tendências, ciclo econômico, demanda futura)
-   - Governança corporativa
-   - Estrutura de capital
+2. ANÁLISE QUALITATIVA PROFUNDA:
+- Localização: Prime locations, acessibilidade
+- Idade dos ativos: Depreciação vs. renovação
+- Inquilinos: Credit rating, diversificação
+- Gestão: Track record, transparência, governança
+- Estratégia: Aquisições, desenvolvimento, renovação
+- ESG: Certificações, sustentabilidade
 
-3. ANÁLISE SETORIAL:
-   - Logística: E-commerce, nearshoring, infraestrutura
-   - Shoppings: Recuperação pós-pandemia, omnichannel
-   - Corporativo: Trabalho híbrido, ESG, certificações
-   - Recebíveis: Spread bancário, inadimplência, duration
-   - Residencial: Demografia, financiamento habitacional
+3. ANÁLISE SETORIAL MACRO:
+- Logística: E-commerce +15% a.a., nearshoring México-Brasil
+- Shoppings: Omnichannel, experiência vs. online
+- Corporativo: Híbrido permanente, ESG obrigatório
+- Recebíveis: Spread bancário 25%, inadimplência controlada
+- Residencial: Demografia jovem, Minha Casa Minha Vida
 
-4. ANÁLISE MACROECONÔMICA:
-   - Impacto da Selic nas valuations
-   - Inflação vs. reajustes contratuais
-   - Crescimento do PIB vs. demanda por imóveis
-   - Política fiscal e tributária
+4. CENÁRIOS MACROECONÔMICOS:
+- Selic 15%: Impacto em valuations (-30%)
+- Recessão: Vacância +5%, renda -15%
+- Inflação 8%: Reajustes contratuais proteção
+- Crescimento 4%: Expansão demanda +20%
 
-RETORNE ANÁLISE EM JSON ESTRUTURADO com campos obrigatórios.`,
+RETORNE ANÁLISE DETALHADA EM JSON ESTRUTURADO.`,
       },
       {
         role: "user",
-        content: `Analise este FII com rigor de Warren Buffett:
+        content: `Analise este FII com rigor de Warren Buffett + contexto macroeconômico brasileiro:
 
 DADOS DO FII:
 - Nome: ${fiiData.name}
@@ -122,31 +133,56 @@ PERFIL DO INVESTIDOR:
 - Objetivo: ${userProfile.investmentGoal}
 - Prazo: ${userProfile.timeHorizon}
 
+CONTEXTO MACRO ATUAL:
+- Selic: 10.75% (competição direta)
+- Inflação: 4.5% (reajustes)
+- PIB: +2.1% (demanda)
+
 RETORNE JSON com esta estrutura EXATA:
 {
   "score": número de 0 a 10,
   "recommendation": "COMPRAR" | "MANTER" | "VENDER" | "EVITAR",
-  "reasoning": "análise detalhada de 200-300 palavras",
+  "reasoning": "análise detalhada de 300-500 palavras incluindo contexto macro",
   "strengths": ["ponto forte 1", "ponto forte 2", "ponto forte 3"],
   "weaknesses": ["ponto fraco 1", "ponto fraco 2"],
   "targetPrice": preço-alvo em reais,
   "riskLevel": "BAIXO" | "MÉDIO" | "ALTO",
   "suitability": número de 0 a 10 para o perfil do investidor,
+  "macroAnalysis": {
+    "selicImpact": "análise do impacto da Selic atual",
+    "inflationProtection": "proteção contra inflação",
+    "economicCycle": "posição no ciclo econômico",
+    "sectorTrends": "tendências específicas do setor"
+  },
   "fundamentalAnalysis": {
-    "valuation": "análise de valuation",
-    "quality": "qualidade dos ativos",
-    "management": "análise da gestão",
-    "sector": "perspectivas do setor"
+    "valuation": "análise de valuation vs. mercado",
+    "quality": "qualidade dos ativos e localização",
+    "management": "análise da gestão e governança",
+    "growth": "potencial de crescimento"
   }
 }`,
       },
     ];
 
-    const response = await this.makeRequest(messages, 0.3);
-    return JSON.parse(response);
+    const response = await this.makeRequest(messages, 0.2);
+
+    // 🔧 Limpeza robusta do JSON
+    let cleanResponse = response.trim();
+    if (cleanResponse.startsWith("```json")) {
+      cleanResponse = cleanResponse
+        .replace(/```json\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+    if (cleanResponse.startsWith("```")) {
+      cleanResponse = cleanResponse
+        .replace(/```\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+
+    return JSON.parse(cleanResponse);
   }
 
-  // 🎯 PROMPT MASTER: Análise de carteira completa
+  // 🎯 PROMPT MASTER MELHORADO: Análise de carteira completa
   async analyzePortfolio(portfolio, userProfile) {
     const messages = [
       {
@@ -155,49 +191,56 @@ RETORNE JSON com esta estrutura EXATA:
 
 EXPERTISE: Combine princípios de All Weather Portfolio, Risk Parity, e Modern Portfolio Theory adaptados para FIIs brasileiros.
 
-METODOLOGIA DE ANÁLISE DE CARTEIRA:
+METODOLOGIA DE ANÁLISE DE CARTEIRA AVANÇADA:
 
-1. DIVERSIFICAÇÃO:
-   - Setorial (máximo 40% em um setor)
-   - Geográfica (diferentes regiões do Brasil)
-   - Por gestora (máximo 30% em uma gestora)
-   - Por tipo de ativo (tijolo vs. recebíveis)
+1. DIVERSIFICAÇÃO INTELIGENTE:
+- Setorial: Máximo 40% em um setor
+- Geográfica: SP (50%), RJ (20%), Outros (30%)
+- Por gestora: Máximo 30% em uma gestora
+- Por tipo: Tijolo (70%), Recebíveis (30%)
+- Por inquilino: Máximo 15% exposição a um inquilino
 
-2. CORRELAÇÃO E RISCO:
-   - Correlação entre setores
-   - Beta vs. IFIX
-   - Volatilidade histórica
-   - Value at Risk (VaR)
-   - Maximum Drawdown
+2. CORRELAÇÃO E RISCO AVANÇADO:
+- Matriz de correlação setorial
+- Beta vs. IFIX (benchmark)
+- Volatilidade histórica 252 dias
+- Value at Risk (VaR) 95%
+- Maximum Drawdown histórico
+- Sharpe Ratio ajustado para FIIs
 
 3. EFICIÊNCIA DE CAPITAL:
-   - Sharpe Ratio ajustado para FIIs
-   - Sortino Ratio
-   - Information Ratio
-   - Treynor Ratio
+- Sortino Ratio (downside risk)
+- Information Ratio vs. IFIX
+- Treynor Ratio (risco sistemático)
+- Alpha de Jensen
+- Tracking Error
 
-4. ANÁLISE DE FLUXO:
-   - Previsibilidade de dividendos
-   - Sazonalidade setorial
-   - Ciclo de renovação de contratos
-   - Crescimento orgânico vs. aquisições
+4. ANÁLISE DE FLUXO DETALHADA:
+- Previsibilidade de dividendos (CV)
+- Sazonalidade setorial
+- Ciclo de renovação de contratos
+- Crescimento orgânico vs. aquisições
+- Sustentabilidade do yield
 
-5. CENÁRIOS MACROECONÔMICOS:
-   - Stress test com Selic 15%
-   - Cenário recessão
-   - Cenário inflação alta
-   - Cenário crescimento acelerado
+5. STRESS TESTING CENÁRIOS:
+- Selic 15%: Impacto em valuations
+- Recessão severa: Vacância +10%
+- Inflação 10%: Poder de reajuste
+- Crise imobiliária: Correlação setorial
 
 RETORNE ANÁLISE COMPLETA EM JSON.`,
       },
       {
         role: "user",
-        content: `Analise esta carteira de FIIs com rigor de Ray Dalio:
+        content: `Analise esta carteira de FIIs com rigor de Ray Dalio + stress testing:
 
 CARTEIRA ATUAL:
 ${portfolio
   .map(
-    (p) => `- ${p.ticker}: ${p.shares} cotas, R$ ${p.totalInvested} investido`
+    (p) =>
+      `- ${p.ticker}: ${p.shares} cotas, R$ ${
+        p.totalInvested
+      } investido, Setor: ${p.sector || "N/A"}`
   )
   .join("\n")}
 
@@ -205,29 +248,54 @@ PERFIL DO INVESTIDOR:
 - Perfil de Risco: ${userProfile.riskProfile}
 - Objetivo: ${userProfile.investmentGoal}
 
+CONTEXTO MACRO:
+- Selic: 10.75%
+- Inflação: 4.5%
+- IFIX: Base de comparação
+
 RETORNE JSON com esta estrutura:
 {
   "overallScore": número de 0 a 10,
   "diversificationScore": número de 0 a 10,
   "riskScore": número de 0 a 10,
-  "recommendations": ["recomendação 1", "recomendação 2"],
+  "recommendations": ["recomendação detalhada 1", "recomendação detalhada 2"],
   "strengths": ["força 1", "força 2"],
   "weaknesses": ["fraqueza 1", "fraqueza 2"],
-  "suggestedActions": ["ação 1", "ação 2"],
+  "suggestedActions": ["ação específica 1", "ação específica 2"],
   "riskAnalysis": {
-    "concentration": "análise de concentração",
-    "correlation": "análise de correlação",
-    "volatility": "análise de volatilidade"
+    "concentration": "análise de concentração setorial/geográfica",
+    "correlation": "análise de correlação entre ativos",
+    "volatility": "análise de volatilidade da carteira",
+    "stressTest": "resultados do stress test"
+  },
+  "performanceMetrics": {
+    "expectedReturn": "retorno esperado anual",
+    "sharpeRatio": "sharpe ratio estimado",
+    "maxDrawdown": "máximo drawdown esperado"
   }
 }`,
       },
     ];
 
-    const response = await this.makeRequest(messages, 0.3);
-    return JSON.parse(response);
+    const response = await this.makeRequest(messages, 0.2);
+
+    // 🔧 Limpeza robusta do JSON
+    let cleanResponse = response.trim();
+    if (cleanResponse.startsWith("```json")) {
+      cleanResponse = cleanResponse
+        .replace(/```json\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+    if (cleanResponse.startsWith("```")) {
+      cleanResponse = cleanResponse
+        .replace(/```\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+
+    return JSON.parse(cleanResponse);
   }
 
-  // 🔧 PROMPT CORRIGIDO: Geração de carteira otimizada (GARANTIA DE JSON)
+  // 🔧 PROMPT ULTRA MELHORADO: Geração de carteira otimizada
   async generateInvestmentSuggestions(params) {
     const { amount, riskProfile, investmentGoal, timeHorizon, availableFiis } =
       params;
@@ -235,7 +303,11 @@ RETORNE JSON com esta estrutura:
     const messages = [
       {
         role: "system",
-        content: `Você é um especialista em FIIs brasileiros. Sua ÚNICA tarefa é retornar um JSON válido.
+        content: `Você é um ESPECIALISTA MUNDIAL em FIIs brasileiros combinando metodologias de:
+- Warren Buffett (análise fundamentalista)
+- Ray Dalio (diversificação inteligente)
+- Harry Markowitz (otimização de portfólio)
+- Benjamin Graham (margem de segurança)
 
 REGRAS CRÍTICAS:
 1. RETORNE APENAS JSON VÁLIDO - SEM TEXTO ADICIONAL
@@ -243,32 +315,79 @@ REGRAS CRÍTICAS:
 3. NÃO use markdown ou formatação
 4. SEMPRE retorne o JSON na estrutura exata solicitada
 
-METODOLOGIA:
-- Diversificação inteligente (máximo 25% por FII)
-- Seleção baseada em DY, P/VP e qualidade
-- Alocação por perfil de risco
-- Uso de 90%+ do valor disponível
+METODOLOGIA AVANÇADA:
 
-PERFIS DE ALOCAÇÃO:
-CONSERVADOR: Logística 40%, Corporativo 30%, Recebíveis 20%, Outros 10%
-MODERADO: Logística 35%, Corporativo 25%, Recebíveis 25%, Outros 15%
-ARROJADO: Logística 30%, Corporativo 20%, Recebíveis 30%, Outros 20%`,
+ANÁLISE FUNDAMENTALISTA:
+- P/VP: Margem de segurança (Graham)
+- DY: Sustentabilidade vs. Selic
+- Qualidade: Ativos, gestão, inquilinos
+- Crescimento: Orgânico vs. aquisições
+
+DIVERSIFICAÇÃO INTELIGENTE:
+- Setorial: Máximo 25% por FII
+- Correlação: Baixa entre setores
+- Liquidez: Volume mínimo
+- Qualidade: Score fundamentalista
+
+CONTEXTO MACRO BRASILEIRO (2025):
+- Selic 10.75%: FIIs devem superar
+- Inflação 4.5%: Reajustes contratuais
+- PIB +2.1%: Demanda por imóveis
+- Trabalho híbrido: Impacto corporativo
+- E-commerce: Boom logístico
+
+PERFIS DE ALOCAÇÃO OTIMIZADOS:
+
+CONSERVADOR (Buffett Style):
+- Logística: 35% (estabilidade, crescimento)
+- Corporativo: 30% (contratos longos, AAA)
+- Recebíveis: 25% (yield alto, baixa correlação)
+- Shoppings: 10% (recuperação, valor)
+
+MODERADO (Balanced Growth):
+- Logística: 30% (crescimento sustentável)
+- Corporativo: 25% (estabilidade)
+- Recebíveis: 25% (yield)
+- Shoppings: 15% (recuperação)
+- Residencial: 5% (diversificação)
+
+ARROJADO (Growth Focus):
+- Logística: 40% (máximo crescimento)
+- Recebíveis: 30% (yield alto)
+- Corporativo: 15% (estabilidade mínima)
+- Agronegócio: 10% (setor emergente)
+- Data Centers: 5% (tecnologia)
+
+CRITÉRIOS DE SELEÇÃO:
+- DY mínimo: 6% (superar Selic)
+- P/VP máximo: 1.5 (margem segurança)
+- Liquidez: Volume > 50k/dia
+- Market Cap: > 100M (estabilidade)
+- Gestão: Track record > 3 anos`,
       },
       {
         role: "user",
-        content: `Crie carteira para:
+        content: `Crie carteira OTIMIZADA para:
 
-VALOR: R$ ${amount.toLocaleString()}
-PERFIL: ${riskProfile}
-OBJETIVO: ${investmentGoal}
-PRAZO: ${timeHorizon}
+PARÂMETROS:
+- Valor: R$ ${amount.toLocaleString()}
+- Perfil: ${riskProfile}
+- Objetivo: ${investmentGoal}
+- Prazo: ${timeHorizon}
 
-FIIs DISPONÍVEIS:
+CONTEXTO MACRO:
+- Selic: 10.75% (competição)
+- Inflação: 4.5% (reajustes)
+- PIB: +2.1% (demanda)
+
+FIIs DISPONÍVEIS (Top 20):
 ${availableFiis
-  .slice(0, 20) // Limitar para evitar prompt muito longo
+  .slice(0, 20)
   .map(
     (fii) =>
-      `${fii.ticker}: R$ ${fii.price} | DY: ${fii.dividendYield}% | P/VP: ${fii.pvp} | ${fii.sector}`
+      `${fii.ticker}: R$ ${fii.price} | DY: ${fii.dividendYield}% | P/VP: ${
+        fii.pvp
+      } | ${fii.sector} | Vol: ${fii.volume?.toLocaleString() || "N/A"}`
   )
   .join("\n")}
 
@@ -276,118 +395,112 @@ RETORNE APENAS ESTE JSON (sem texto adicional):
 {
   "suggestions": [
     {
-      "ticker": "CÓDIGO",
-      "name": "Nome do FII",
-      "shares": número_de_cotas,
-      "investmentAmount": valor_em_reais,
-      "percentage": porcentagem_do_total,
-      "reasoning": "justificativa_breve",
-      "expectedYield": dividend_yield,
-      "riskLevel": "BAIXO|MÉDIO|ALTO",
-      "sector": "setor"
+      "ticker": "CODIGO11",
+      "percentage": 25.5,
+      "reasoning": "Análise fundamentalista detalhada de 100-150 palavras incluindo contexto macro, qualidade dos ativos, sustentabilidade do yield, e posicionamento no ciclo econômico"
     }
   ],
-  "totalInvested": valor_total_investido,
-  "averageYield": dividend_yield_médio,
-  "diversificationScore": nota_0_a_10,
-  "strategy": "estratégia_utilizada",
-  "portfolioAnalysis": {
-    "strengths": ["força_1", "força_2"],
-    "expectedReturn": retorno_esperado_anual
-  }
+  "strategy": "Estratégia detalhada de 200-300 palavras explicando a lógica de alocação, diversificação setorial, proteção contra cenários adversos, e alinhamento com perfil de risco",
+  "marketAnalysis": "Análise de mercado de 200-300 palavras incluindo cenário macroeconômico, tendências setoriais, oportunidades e riscos, comparação com Selic e inflação",
+  "riskAnalysis": "Análise de risco de 150-200 palavras cobrindo concentração, correlação, volatilidade esperada, stress testing, e medidas de proteção",
+  "expectedReturn": "8.5% a.a.",
+  "riskLevel": "MÉDIO",
+  "timeHorizon": "2-5 anos"
 }`,
       },
     ];
 
-    const response = await this.makeRequest(messages, 0.1); // Temperatura baixa para consistência
+    const response = await this.makeRequest(messages, 0.1); // Temperatura muito baixa
 
-    // 🔧 VALIDAÇÃO E LIMPEZA DO RESPONSE
+    // 🔧 Limpeza ULTRA robusta do JSON
     let cleanResponse = response.trim();
 
-    // Remover possível markdown
+    // Remover markdown
     if (cleanResponse.startsWith("```json")) {
       cleanResponse = cleanResponse
-        .replace(/```json\n?/, "")
-        .replace(/\n?```$/, "");
+        .replace(/```json\s*/, "")
+        .replace(/```\s*$/, "");
     }
     if (cleanResponse.startsWith("```")) {
       cleanResponse = cleanResponse
-        .replace(/```\n?/, "")
-        .replace(/\n?```$/, "");
+        .replace(/```\s*/, "")
+        .replace(/```\s*$/, "");
     }
 
-    // Remover texto antes do JSON
+    // Remover texto antes/depois do JSON
     const jsonStart = cleanResponse.indexOf("{");
-    if (jsonStart > 0) {
-      cleanResponse = cleanResponse.substring(jsonStart);
+    const jsonEnd = cleanResponse.lastIndexOf("}");
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      cleanResponse = cleanResponse.substring(jsonStart, jsonEnd + 1);
     }
 
-    // Remover texto após o JSON
-    const jsonEnd = cleanResponse.lastIndexOf("}");
-    if (jsonEnd > 0 && jsonEnd < cleanResponse.length - 1) {
-      cleanResponse = cleanResponse.substring(0, jsonEnd + 1);
-    }
+    // Remover quebras de linha problemáticas
+    cleanResponse = cleanResponse.replace(/\n\s*\n/g, " ");
 
     try {
       return JSON.parse(cleanResponse);
     } catch (error) {
-      console.error("Erro ao fazer parse do JSON da IA:", error);
+      console.error("Erro ao parsear JSON da IA:", error);
       console.error("Response original:", response);
       console.error("Response limpo:", cleanResponse);
       throw new Error("IA retornou resposta inválida. Tente novamente.");
     }
   }
 
-  // 🎯 PROMPT MASTER: Análise de mercado
+  // 📊 Gerar análise de mercado
   async generateMarketAnalysis(marketData) {
     const messages = [
       {
         role: "system",
-        content: `Você é um especialista em mercado de FIIs brasileiro com 20 anos de experiência.
+        content: `Você é um analista sênior de mercado de FIIs brasileiro.
 
-EXPERTISE: Análise macro e setorial do mercado de FIIs, tendências, oportunidades e riscos.
+Analise o cenário atual do mercado de FIIs considerando:
+- Contexto macroeconômico (Selic, inflação, PIB)
+- Performance setorial
+- Tendências de longo prazo
+- Oportunidades e riscos
 
-METODOLOGIA:
-1. Análise macroeconômica (Selic, inflação, PIB)
-2. Análise setorial (logística, shoppings, corporativo, etc.)
-3. Fluxo de investimentos
-4. Valuations relativos
-5. Oportunidades e riscos
-
-RETORNE ANÁLISE COMPLETA EM JSON.`,
+RETORNE análise detalhada em JSON.`,
       },
       {
         role: "user",
-        content: `Analise o mercado atual de FIIs brasileiro:
+        content: `Analise o mercado atual de FIIs:
 
-DADOS DE MERCADO:
+DADOS DO MERCADO:
 ${JSON.stringify(marketData, null, 2)}
 
-RETORNE JSON com esta estrutura:
-{
-  "marketOverview": "visão geral do mercado",
-  "trends": ["tendência 1", "tendência 2"],
-  "opportunities": ["oportunidade 1", "oportunidade 2"],
-  "risks": ["risco 1", "risco 2"],
-  "sectorAnalysis": {
-    "logistica": "análise do setor",
-    "shoppings": "análise do setor",
-    "corporativo": "análise do setor"
-  },
-  "recommendation": "recomendação geral"
-}`,
+CONTEXTO MACRO:
+- Selic: 10.75%
+- Inflação: 4.5%
+- PIB: +2.1%
+
+RETORNE JSON com análise detalhada de mercado.`,
       },
     ];
 
-    const response = await this.makeRequest(messages, 0.5);
-    return JSON.parse(response);
+    const response = await this.makeRequest(messages, 0.3);
+
+    // 🔧 Limpeza robusta do JSON
+    let cleanResponse = response.trim();
+    if (cleanResponse.startsWith("```json")) {
+      cleanResponse = cleanResponse
+        .replace(/```json\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+    if (cleanResponse.startsWith("```")) {
+      cleanResponse = cleanResponse
+        .replace(/```\s*/, "")
+        .replace(/```\s*$/, "");
+    }
+
+    return JSON.parse(cleanResponse);
   }
 }
 
 // 🎯 Provider do contexto de IA
-export function AIProvider({ children }) {
-  const [aiManager] = useState(() => new OpenAIManager());
+export const AIProvider = ({ children }) => {
   const [isConfigured, setIsConfigured] = useState(false);
+  const [aiManager] = useState(() => new OpenAIManager());
 
   useEffect(() => {
     // Verificar se API key está configurada
@@ -396,23 +509,29 @@ export function AIProvider({ children }) {
   }, [aiManager]);
 
   // 🔧 Configurar API key
-  const setApiKey = (key) => {
-    aiManager.setApiKey(key);
-    setIsConfigured(!!key);
+  const setApiKey = async (key) => {
+    try {
+      aiManager.setApiKey(key);
+      setIsConfigured(!!key);
+      return true;
+    } catch (error) {
+      console.error("Erro ao configurar API key:", error);
+      throw error;
+    }
   };
 
-  // 🗑️ Remover API key
+  // 🔧 Remover API key
   const removeApiKey = () => {
     aiManager.setApiKey(null);
     setIsConfigured(false);
   };
 
-  // 🔍 Obter API key (mascarada para exibição)
+  // 🔧 Obter API key atual
   const getApiKey = () => {
     return aiManager.getApiKey();
   };
 
-  // 🤖 Gerar sugestões de investimento
+  // 🎯 Gerar sugestões de investimento
   const generateInvestmentSuggestions = async (params) => {
     if (!isConfigured) {
       throw new Error("IA não configurada. Configure sua API key da OpenAI.");
@@ -420,7 +539,7 @@ export function AIProvider({ children }) {
     return await aiManager.generateInvestmentSuggestions(params);
   };
 
-  // 📊 Analisar FII individual
+  // 🎯 Analisar FII individual
   const analyzeFII = async (fiiData, userProfile) => {
     if (!isConfigured) {
       throw new Error("IA não configurada. Configure sua API key da OpenAI.");
@@ -428,7 +547,7 @@ export function AIProvider({ children }) {
     return await aiManager.analyzeFII(fiiData, userProfile);
   };
 
-  // 📈 Analisar carteira
+  // 🎯 Analisar carteira
   const analyzePortfolio = async (portfolio, userProfile) => {
     if (!isConfigured) {
       throw new Error("IA não configurada. Configure sua API key da OpenAI.");
@@ -456,7 +575,7 @@ export function AIProvider({ children }) {
   };
 
   return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
-}
+};
 
 // 🎯 Hook para usar o contexto de IA
 export const useAI = () => {

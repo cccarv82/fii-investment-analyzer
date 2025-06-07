@@ -1,121 +1,158 @@
-import React, { useState } from 'react';
-import { DollarSign, Target, Clock, TrendingUp, AlertCircle } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { Alert, AlertDescription } from '../ui/alert';
-import { formatCurrency } from '../../lib/utils/formatters';
+import React, { useState } from "react";
+import {
+  DollarSign,
+  Target,
+  Clock,
+  TrendingUp,
+  AlertCircle,
+} from "lucide-react";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
+import { Alert, AlertDescription } from "../ui/alert";
+import { formatCurrency } from "../../lib/utils/formatters";
 
 const InvestmentForm = ({ onSubmit, isLoading = false }) => {
   const [formData, setFormData] = useState({
-    amount: '',
-    riskProfile: '',
-    investmentGoal: '',
-    timeHorizon: ''
+    amount: "",
+    riskProfile: "",
+    investmentGoal: "",
+    timeHorizon: "",
   });
-  
+
   const [errors, setErrors] = useState({});
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     // Validar valor
     const amount = parseFloat(formData.amount);
     if (!formData.amount || isNaN(amount)) {
-      newErrors.amount = 'Valor é obrigatório';
+      newErrors.amount = "Valor é obrigatório";
     } else if (amount < 100) {
-      newErrors.amount = 'Valor mínimo é R$ 100';
+      newErrors.amount = "Valor mínimo é R$ 100";
     } else if (amount > 1000000) {
-      newErrors.amount = 'Valor máximo é R$ 1.000.000';
+      newErrors.amount = "Valor máximo é R$ 1.000.000";
     }
-    
+
     // Validar outros campos
     if (!formData.riskProfile) {
-      newErrors.riskProfile = 'Selecione seu perfil de risco';
+      newErrors.riskProfile = "Selecione seu perfil de risco";
     }
-    
+
     if (!formData.investmentGoal) {
-      newErrors.investmentGoal = 'Selecione seu objetivo';
+      newErrors.investmentGoal = "Selecione seu objetivo";
     }
-    
+
     if (!formData.timeHorizon) {
-      newErrors.timeHorizon = 'Selecione o prazo';
+      newErrors.timeHorizon = "Selecione o prazo";
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (validateForm()) {
       onSubmit({
         ...formData,
-        amount: parseFloat(formData.amount)
+        amount: parseFloat(formData.amount),
       });
     }
   };
 
+  // CORREÇÃO DO BUG: Nova função para lidar com entrada de valor
   const handleAmountChange = (e) => {
-    const value = e.target.value.replace(/[^0-9]/g, '');
-    setFormData(prev => ({ ...prev, amount: value }));
-    
+    let value = e.target.value;
+
+    // Remove tudo que não é número ou vírgula/ponto
+    value = value.replace(/[^\d.,]/g, "");
+
+    // Substitui vírgula por ponto para padronizar
+    value = value.replace(",", ".");
+
+    // Garante apenas um ponto decimal
+    const parts = value.split(".");
+    if (parts.length > 2) {
+      value = parts[0] + "." + parts.slice(1).join("");
+    }
+
+    // Limita a 2 casas decimais
+    if (parts[1] && parts[1].length > 2) {
+      value = parts[0] + "." + parts[1].substring(0, 2);
+    }
+
+    setFormData((prev) => ({ ...prev, amount: value }));
+
     // Limpar erro do campo
     if (errors.amount) {
-      setErrors(prev => ({ ...prev, amount: '' }));
+      setErrors((prev) => ({ ...prev, amount: "" }));
     }
   };
 
   const riskProfiles = [
     {
-      value: 'conservador',
-      label: 'Conservador',
-      description: 'Prioriza segurança e renda estável',
-      icon: '🛡️'
+      value: "conservador",
+      label: "Conservador",
+      description: "Prioriza segurança e renda estável",
+      icon: "🛡️",
     },
     {
-      value: 'moderado',
-      label: 'Moderado',
-      description: 'Equilibra segurança e crescimento',
-      icon: '⚖️'
+      value: "moderado",
+      label: "Moderado",
+      description: "Equilibra segurança e crescimento",
+      icon: "⚖️",
     },
     {
-      value: 'arrojado',
-      label: 'Arrojado',
-      description: 'Busca maior potencial de retorno',
-      icon: '🚀'
-    }
+      value: "arrojado",
+      label: "Arrojado",
+      description: "Busca maior potencial de retorno",
+      icon: "🚀",
+    },
   ];
 
   const investmentGoals = [
     {
-      value: 'renda',
-      label: 'Renda Passiva',
-      description: 'Foco em dividendos mensais',
-      icon: <DollarSign className="h-5 w-5" />
+      value: "renda",
+      label: "Renda Passiva",
+      description: "Foco em dividendos mensais",
+      icon: <DollarSign className="h-5 w-5" />,
     },
     {
-      value: 'crescimento',
-      label: 'Crescimento',
-      description: 'Valorização do patrimônio',
-      icon: <TrendingUp className="h-5 w-5" />
+      value: "crescimento",
+      label: "Crescimento",
+      description: "Valorização do patrimônio",
+      icon: <TrendingUp className="h-5 w-5" />,
     },
     {
-      value: 'equilibrado',
-      label: 'Equilibrado',
-      description: 'Renda + crescimento',
-      icon: <Target className="h-5 w-5" />
-    }
+      value: "equilibrado",
+      label: "Equilibrado",
+      description: "Renda + crescimento",
+      icon: <Target className="h-5 w-5" />,
+    },
   ];
 
   const timeHorizons = [
-    { value: 'curto', label: 'Curto Prazo (até 2 anos)' },
-    { value: 'medio', label: 'Médio Prazo (2-5 anos)' },
-    { value: 'longo', label: 'Longo Prazo (5+ anos)' }
+    { value: "curto", label: "Curto Prazo (até 2 anos)" },
+    { value: "medio", label: "Médio Prazo (2-5 anos)" },
+    { value: "longo", label: "Longo Prazo (5+ anos)" },
   ];
 
   return (
@@ -129,10 +166,10 @@ const InvestmentForm = ({ onSubmit, isLoading = false }) => {
           Informe seus dados para receber sugestões personalizadas de FIIs
         </CardDescription>
       </CardHeader>
-      
+
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Valor do Investimento */}
+          {/* Valor do Investimento - CORRIGIDO */}
           <div className="space-y-2">
             <Label htmlFor="amount">Valor para Investir</Label>
             <div className="relative">
@@ -142,20 +179,22 @@ const InvestmentForm = ({ onSubmit, isLoading = false }) => {
               <Input
                 id="amount"
                 type="text"
-                placeholder="10.000"
-                value={formData.amount ? formatCurrency(parseFloat(formData.amount)).replace('R$', '').trim() : ''}
+                placeholder="10000.00"
+                value={formData.amount}
                 onChange={handleAmountChange}
-                className={`pl-10 ${errors.amount ? 'border-red-500' : ''}`}
+                className={`pl-10 ${errors.amount ? "border-red-500" : ""}`}
               />
             </div>
             {errors.amount && (
               <p className="text-sm text-red-500">{errors.amount}</p>
             )}
-            {formData.amount && !errors.amount && (
-              <p className="text-sm text-muted-foreground">
-                Valor: {formatCurrency(parseFloat(formData.amount))}
-              </p>
-            )}
+            {formData.amount &&
+              !errors.amount &&
+              !isNaN(parseFloat(formData.amount)) && (
+                <p className="text-sm text-muted-foreground">
+                  Valor: {formatCurrency(parseFloat(formData.amount))}
+                </p>
+              )}
           </div>
 
           {/* Perfil de Risco */}
@@ -164,15 +203,18 @@ const InvestmentForm = ({ onSubmit, isLoading = false }) => {
             <RadioGroup
               value={formData.riskProfile}
               onValueChange={(value) => {
-                setFormData(prev => ({ ...prev, riskProfile: value }));
+                setFormData((prev) => ({ ...prev, riskProfile: value }));
                 if (errors.riskProfile) {
-                  setErrors(prev => ({ ...prev, riskProfile: '' }));
+                  setErrors((prev) => ({ ...prev, riskProfile: "" }));
                 }
               }}
               className="grid grid-cols-1 md:grid-cols-3 gap-4"
             >
               {riskProfiles.map((profile) => (
-                <div key={profile.value} className="flex items-center space-x-2">
+                <div
+                  key={profile.value}
+                  className="flex items-center space-x-2"
+                >
                   <RadioGroupItem value={profile.value} id={profile.value} />
                   <Label
                     htmlFor={profile.value}
@@ -202,9 +244,9 @@ const InvestmentForm = ({ onSubmit, isLoading = false }) => {
             <RadioGroup
               value={formData.investmentGoal}
               onValueChange={(value) => {
-                setFormData(prev => ({ ...prev, investmentGoal: value }));
+                setFormData((prev) => ({ ...prev, investmentGoal: value }));
                 if (errors.investmentGoal) {
-                  setErrors(prev => ({ ...prev, investmentGoal: '' }));
+                  setErrors((prev) => ({ ...prev, investmentGoal: "" }));
                 }
               }}
               className="grid grid-cols-1 md:grid-cols-3 gap-4"
@@ -240,13 +282,15 @@ const InvestmentForm = ({ onSubmit, isLoading = false }) => {
             <Select
               value={formData.timeHorizon}
               onValueChange={(value) => {
-                setFormData(prev => ({ ...prev, timeHorizon: value }));
+                setFormData((prev) => ({ ...prev, timeHorizon: value }));
                 if (errors.timeHorizon) {
-                  setErrors(prev => ({ ...prev, timeHorizon: '' }));
+                  setErrors((prev) => ({ ...prev, timeHorizon: "" }));
                 }
               }}
             >
-              <SelectTrigger className={errors.timeHorizon ? 'border-red-500' : ''}>
+              <SelectTrigger
+                className={errors.timeHorizon ? "border-red-500" : ""}
+              >
                 <SelectValue placeholder="Selecione o prazo" />
               </SelectTrigger>
               <SelectContent>
@@ -269,8 +313,9 @@ const InvestmentForm = ({ onSubmit, isLoading = false }) => {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              As sugestões são baseadas em análise fundamentalista e não constituem 
-              recomendação de investimento. Sempre consulte um profissional qualificado.
+              As sugestões são baseadas em análise fundamentalista e não
+              constituem recomendação de investimento. Sempre consulte um
+              profissional qualificado.
             </AlertDescription>
           </Alert>
 
@@ -300,4 +345,3 @@ const InvestmentForm = ({ onSubmit, isLoading = false }) => {
 };
 
 export default InvestmentForm;
-

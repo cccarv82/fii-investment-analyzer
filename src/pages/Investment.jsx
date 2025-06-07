@@ -28,7 +28,7 @@ import { Button } from "../components/ui/button";
 import { formatCurrency, formatPercentage } from "../lib/utils/formatters";
 import { useAI } from "../contexts/AIContext";
 import { usePortfolio } from "../contexts/PortfolioContext";
-import { getAllFIIData } from "../lib/api/fii_data_manager"; // 🔧 CORREÇÃO: Usar função integrada
+import { getAllFIIData, getBestFIIsForAI } from "../lib/api/fii_data_manager"; // 🔧 CORREÇÃO: Usar função para 100 melhores
 import InvestmentForm from "../components/investment/InvestmentForm";
 import { SuggestionsList } from "../components/investment/SuggestionCard";
 
@@ -38,9 +38,10 @@ const Investment = () => {
   const [error, setError] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("analysis"); // 🔧 NOVO: Controle de aba
 
   const { generateInvestmentSuggestions, isConfigured, getBrapiToken } =
-    useAI(); // 🔧 CORREÇÃO: Adicionar getBrapiToken
+    useAI();
   const { addInvestment, positions } = usePortfolio();
 
   // 🔍 FUNÇÃO DE DEBUG DETALHADO
@@ -57,6 +58,7 @@ const Investment = () => {
         pvp: sample.pvp,
         sector: sample.sector,
         marketCap: sample.marketCap,
+        qualityScore: sample.qualityScore,
         allKeys: Object.keys(sample),
       });
 
@@ -67,19 +69,37 @@ const Investment = () => {
       ).length;
       const withPVP = fiis.filter((f) => f.pvp && f.pvp > 0).length;
       const withSector = fiis.filter((f) => f.sector).length;
+      const withScore = fiis.filter(
+        (f) => f.qualityScore && f.qualityScore > 0
+      ).length;
 
       console.log(
-        `Estatísticas: price=${withPrice}, DY=${withDY}, PVP=${withPVP}, sector=${withSector}`
+        `Estatísticas: price=${withPrice}, DY=${withDY}, PVP=${withPVP}, sector=${withSector}, score=${withScore}`
       );
+
+      // Top 5 por score
+      const topByScore = fiis
+        .filter((f) => f.qualityScore)
+        .sort((a, b) => b.qualityScore - a.qualityScore)
+        .slice(0, 5);
+
+      console.log("Top 5 por Quality Score:");
+      topByScore.forEach((fii, i) => {
+        console.log(
+          `${i + 1}. ${fii.ticker}: Score ${fii.qualityScore}, DY ${
+            fii.dividendYield
+          }%, P/VP ${fii.pvp}`
+        );
+      });
     }
   };
 
-  // 🎯 Função principal para obter sugestões com IA REAL
+  // 🎯 Função principal ULTIMATE para obter sugestões com IA SUPREMA
   const handleSubmitInvestment = async (formData) => {
     setIsLoading(true);
     setError(null);
     setLoadingProgress(0);
-    setLoadingMessage("Inicializando análise...");
+    setLoadingMessage("Inicializando análise ULTIMATE...");
 
     try {
       // 🔧 CORREÇÃO: Verificar configurações antes de começar
@@ -96,85 +116,70 @@ const Investment = () => {
         );
       }
 
-      // 1. Obter TODOS os FIIs disponíveis com token do Supabase
-      setLoadingProgress(20);
-      setLoadingMessage("Carregando base otimizada de FIIs da B3...");
+      // 1. 🚀 CARREGAR 300 FIIs (meta ultimate)
+      setLoadingProgress(15);
+      setLoadingMessage("Carregando 300 FIIs da B3 (meta ultimate)...");
 
       console.log(
         "🔑 [Investment] Usando BRAPI token do Supabase:",
         !!brapiToken
       );
-      const allFIIs = await getAllFIIData(brapiToken); // 🔧 CORREÇÃO: Passar token do Supabase
+      const allFIIs = await getAllFIIData(brapiToken);
 
       console.log(`📊 ${allFIIs.length} FIIs carregados para análise`);
-      debugFIIData(allFIIs, "DADOS ORIGINAIS");
+      debugFIIData(allFIIs, "DADOS ORIGINAIS - 300 FIIs");
 
       // 🔧 VALIDAÇÃO: Verificar se temos FIIs suficientes
-      if (allFIIs.length < 10) {
+      if (allFIIs.length < 50) {
         throw new Error(
           `Apenas ${allFIIs.length} FIIs carregados. Verifique sua configuração BRAPI ou tente novamente.`
         );
       }
 
-      // 🔧 LIMITE SEGURO: Se muitos FIIs, avisar mas continuar
-      if (allFIIs.length > 200) {
-        console.warn(
-          `⚠️ ${allFIIs.length} FIIs carregados - isso pode ser muitos. Aplicando filtros rigorosos.`
-        );
-      }
+      // 2. 🎯 SELECIONAR OS 100 MELHORES PARA IA (algoritmo inteligente)
+      setLoadingProgress(30);
+      setLoadingMessage(
+        "Selecionando os 100 melhores FIIs com algoritmo inteligente..."
+      );
 
-      // 2. Filtrar FIIs elegíveis baseado no perfil (COM DEBUG)
-      setLoadingProgress(40);
-      setLoadingMessage("Aplicando filtros de qualidade e perfil de risco...");
+      const bestFIIs = await getBestFIIsForAI(brapiToken);
+      console.log(`🏆 ${bestFIIs.length} melhores FIIs selecionados para IA`);
+      debugFIIData(bestFIIs, "100 MELHORES PARA IA");
 
-      const eligibleFIIs = filterFIIsByProfileWithDebug(allFIIs, formData);
-      console.log(`🎯 ${eligibleFIIs.length} FIIs elegíveis após filtros`);
-      debugFIIData(eligibleFIIs, "APÓS FILTROS PRINCIPAIS");
-
-      // 🔧 CORREÇÃO: Se poucos FIIs elegíveis, relaxar filtros
-      let finalEligibleFIIs = eligibleFIIs;
-      if (eligibleFIIs.length < 10) {
-        console.log("⚠️ Poucos FIIs elegíveis, relaxando filtros...");
-        finalEligibleFIIs = relaxFiltersWithDebug(allFIIs, formData);
-        console.log(`🎯 ${finalEligibleFIIs.length} FIIs após relaxar filtros`);
-        debugFIIData(finalEligibleFIIs, "APÓS RELAXAR FILTROS");
-      }
-
-      if (finalEligibleFIIs.length === 0) {
+      if (bestFIIs.length < 20) {
         throw new Error(
-          "Nenhum FII encontrado com os critérios especificados. Tente ajustar seu perfil de risco."
+          `Apenas ${bestFIIs.length} FIIs de qualidade encontrados. Tente novamente mais tarde.`
         );
       }
 
-      // 3. 🔧 OTIMIZAÇÃO CRÍTICA: Limitar FIIs para IA (máximo 20)
+      // 3. 🔧 FILTRAR POR PERFIL DO USUÁRIO (dos 100 melhores)
+      setLoadingProgress(45);
+      setLoadingMessage("Aplicando filtros personalizados do seu perfil...");
+
+      const profileFilteredFIIs = filterFIIsByProfileUltimate(
+        bestFIIs,
+        formData
+      );
+      console.log(
+        `🎯 ${profileFilteredFIIs.length} FIIs após filtros de perfil`
+      );
+      debugFIIData(profileFilteredFIIs, "APÓS FILTROS DE PERFIL");
+
+      // 🔧 GARANTIR MÍNIMO PARA IA
+      let finalFIIsForAI = profileFilteredFIIs;
+      if (profileFilteredFIIs.length < 20) {
+        console.log("⚠️ Poucos FIIs após filtros, usando os 50 melhores");
+        finalFIIsForAI = bestFIIs.slice(0, 50);
+      }
+
+      // 4. 🤖 USAR IA SUPREMA (PROMPT PICA DAS GALÁXIAS)
       setLoadingProgress(60);
-      setLoadingMessage("Selecionando melhores FIIs para análise IA...");
+      setLoadingMessage(
+        "Analisando com IA SUPREMA (Warren Buffett + Ray Dalio + Peter Lynch)..."
+      );
 
-      // Ordenar por qualidade e pegar os melhores
-      const topFIIs = finalEligibleFIIs
-        .sort((a, b) => {
-          // Critério de qualidade: DY alto + P/VP baixo + Market Cap alto
-          const scoreA =
-            (a.dividendYield || 0) -
-            (a.pvp || 1) +
-            Math.log10((a.marketCap || 100000000) / 100000000);
-          const scoreB =
-            (b.dividendYield || 0) -
-            (b.pvp || 1) +
-            Math.log10((b.marketCap || 100000000) / 100000000);
-          return scoreB - scoreA;
-        })
-        .slice(0, 20); // 🔧 LIMITE CRÍTICO: Máximo 20 FIIs para IA
+      console.log("🤖 Iniciando análise com IA SUPREMA...");
 
-      console.log(`🎯 ${topFIIs.length} melhores FIIs selecionados para IA`);
-
-      // 4. Usar IA REAL da OpenAI com dados otimizados
-      setLoadingProgress(70);
-      setLoadingMessage("Analisando FIIs com inteligência artificial...");
-
-      console.log("🤖 Iniciando análise com IA real da OpenAI...");
-
-      // 🔧 CORREÇÃO: Usar formato correto para IA
       const userProfile = {
         riskProfile: formData.riskProfile,
         investmentGoal: formData.investmentGoal,
@@ -183,7 +188,7 @@ const Investment = () => {
       };
 
       // 🔧 DADOS OTIMIZADOS: Enviar apenas dados essenciais para IA
-      const optimizedFIIs = topFIIs.map((fii) => ({
+      const optimizedFIIs = finalFIIsForAI.slice(0, 100).map((fii) => ({
         ticker: fii.ticker,
         name: fii.name,
         price: fii.price,
@@ -191,18 +196,23 @@ const Investment = () => {
         pvp: fii.pvp,
         sector: fii.sector,
         marketCap: fii.marketCap,
+        qualityScore: fii.qualityScore,
         // Remover dados desnecessários para economizar tokens
       }));
 
-      const aiAnalysis = await generateInvestmentSuggestions(
-        optimizedFIIs, // 🔧 DADOS OTIMIZADOS
-        userProfile,
-        positions || [] // Carteira atual
+      console.log(
+        `🎯 Enviando ${optimizedFIIs.length} FIIs otimizados para IA`
       );
 
-      // 5. Processar e validar recomendações da IA
-      setLoadingProgress(85);
-      setLoadingMessage("Processando recomendações da IA...");
+      const aiAnalysis = await generateInvestmentSuggestions(
+        optimizedFIIs,
+        userProfile,
+        positions || []
+      );
+
+      // 5. 🔧 PROCESSAR E VALIDAR RECOMENDAÇÕES DA IA
+      setLoadingProgress(80);
+      setLoadingMessage("Processando recomendações da IA SUPREMA...");
 
       if (
         !aiAnalysis ||
@@ -214,31 +224,38 @@ const Investment = () => {
         );
       }
 
-      // 6. Validar e ajustar alocações
-      setLoadingProgress(95);
-      setLoadingMessage("Validando e otimizando carteira...");
+      console.log(`✅ IA retornou ${aiAnalysis.suggestions.length} sugestões`);
 
-      const validatedSuggestions = validateAndOptimizePortfolio(
+      // 6. 🔧 VALIDAR E CALCULAR ALOCAÇÕES CORRETAS
+      setLoadingProgress(90);
+      setLoadingMessage("Validando e calculando alocações...");
+
+      const validatedSuggestions = validateAndCalculateAllocations(
         aiAnalysis,
         formData.amount,
-        finalEligibleFIIs
+        allFIIs
       );
 
-      // 7. Finalizar
+      // 7. ✅ FINALIZAR E MUDAR PARA ABA RESULTADOS
       setLoadingProgress(100);
-      setLoadingMessage("Análise concluída!");
+      setLoadingMessage("Análise concluída com sucesso!");
 
       setSuggestions({
         ...validatedSuggestions,
         formData,
         timestamp: new Date().toISOString(),
-        source: "openai_real",
+        source: "ai_suprema",
         totalFIIsAnalyzed: allFIIs.length,
-        eligibleFIIs: finalEligibleFIIs.length,
-        topFIIsForAI: topFIIs.length,
+        bestFIIsSelected: bestFIIs.length,
+        finalFIIsForAI: finalFIIsForAI.length,
       });
 
-      console.log("✅ Análise concluída com sucesso!");
+      // 🎯 AUTO-SWITCH PARA ABA RESULTADOS
+      setTimeout(() => {
+        setActiveTab("results");
+      }, 1000);
+
+      console.log("✅ Análise ULTIMATE concluída com sucesso!");
     } catch (error) {
       console.error("❌ Erro na análise:", error);
       setError(error.message);
@@ -249,50 +266,40 @@ const Investment = () => {
     }
   };
 
-  // 🔧 FILTROS MELHORADOS COM CONFIGURAÇÕES REAIS
-  const filterFIIsByProfileWithDebug = (allFIIs, formData) => {
-    console.log(`\n🔍 APLICANDO FILTROS PARA PERFIL: ${formData.riskProfile}`);
+  // 🔧 FILTROS ULTIMATE POR PERFIL DO USUÁRIO
+  const filterFIIsByProfileUltimate = (bestFIIs, formData) => {
+    console.log(
+      `\n🎯 APLICANDO FILTROS ULTIMATE PARA PERFIL: ${formData.riskProfile}`
+    );
     console.log(`📋 OBJETIVO: ${formData.investmentGoal}`);
     console.log(`⏰ PRAZO: ${formData.timeHorizon}`);
 
-    let filtered = [...allFIIs];
+    let filtered = [...bestFIIs];
 
-    // 1. Filtros básicos de qualidade
-    filtered = filtered.filter((fii) => {
-      return (
-        fii.price &&
-        fii.price > 0 &&
-        fii.dividendYield &&
-        fii.dividendYield > 0 &&
-        fii.sector
-      );
-    });
-    console.log(`✅ Após filtros básicos: ${filtered.length} FIIs`);
-
-    // 2. Filtros por PERFIL DE RISCO (USANDO CONFIGURAÇÕES REAIS)
+    // 1. Filtros por PERFIL DE RISCO
     if (formData.riskProfile === "conservador") {
       filtered = filtered.filter((fii) => {
         return (
-          fii.dividendYield >= 6 && // DY mínimo mais alto
-          (!fii.pvp || fii.pvp <= 1.2) && // P/VP conservador
+          fii.dividendYield >= 7 && // DY alto para conservador
+          fii.pvp <= 1.1 && // P/VP baixo
           ["Logística", "Corporativo", "Recebíveis"].includes(fii.sector) && // Setores seguros
-          (!fii.marketCap || fii.marketCap >= 500000000) // Market cap mínimo
+          (fii.marketCap || 0) >= 300000000 // Market cap mínimo
         );
       });
     } else if (formData.riskProfile === "moderado") {
       filtered = filtered.filter((fii) => {
         return (
-          fii.dividendYield >= 4 && // DY moderado
-          (!fii.pvp || fii.pvp <= 1.5) && // P/VP moderado
-          (!fii.marketCap || fii.marketCap >= 100000000) // Market cap moderado
+          fii.dividendYield >= 5 && // DY moderado
+          fii.pvp <= 1.4 && // P/VP moderado
+          (fii.marketCap || 0) >= 150000000 // Market cap moderado
         );
       });
     } else if (formData.riskProfile === "arrojado") {
       filtered = filtered.filter((fii) => {
         return (
-          fii.dividendYield >= 3 && // DY mais flexível
-          (!fii.pvp || fii.pvp <= 2.0) && // P/VP mais flexível
-          (!fii.marketCap || fii.marketCap >= 50000000) // Market cap menor
+          fii.dividendYield >= 4 && // DY flexível
+          fii.pvp <= 1.8 && // P/VP flexível
+          (fii.marketCap || 0) >= 50000000 // Market cap menor
         );
       });
     }
@@ -301,39 +308,35 @@ const Investment = () => {
       `✅ Após filtros de risco (${formData.riskProfile}): ${filtered.length} FIIs`
     );
 
-    // 3. Filtros por OBJETIVO DE INVESTIMENTO
+    // 2. Filtros por OBJETIVO
     if (formData.investmentGoal === "renda") {
-      filtered = filtered.filter((fii) => fii.dividendYield >= 6); // Foco em alta renda
+      filtered = filtered.filter((fii) => fii.dividendYield >= 7); // Foco em alta renda
     } else if (formData.investmentGoal === "crescimento") {
       filtered = filtered.filter((fii) =>
         ["Logística", "Agronegócio", "Industrial", "Data Center"].includes(
           fii.sector
         )
-      ); // Setores de crescimento
+      );
     }
-    // "equilibrado" não aplica filtros adicionais
 
     console.log(
       `✅ Após filtros de objetivo (${formData.investmentGoal}): ${filtered.length} FIIs`
     );
 
-    // 4. Filtros por PRAZO
+    // 3. Filtros por PRAZO
     if (formData.timeHorizon === "curto") {
-      // Prazo curto: priorizar liquidez e estabilidade
       filtered = filtered.filter(
         (fii) =>
-          (!fii.volume || fii.volume >= 100000) && // Volume mínimo
+          (fii.volume || 0) >= 100000 && // Volume mínimo
           ["Logística", "Corporativo", "Recebíveis"].includes(fii.sector)
       );
     } else if (formData.timeHorizon === "longo") {
-      // Prazo longo: pode aceitar mais volatilidade
       filtered = filtered.filter((fii) =>
         ["Logística", "Agronegócio", "Industrial", "Residencial"].includes(
           fii.sector
         )
       );
     }
-    // "medio" não aplica filtros adicionais
 
     console.log(
       `✅ Após filtros de prazo (${formData.timeHorizon}): ${filtered.length} FIIs`
@@ -342,57 +345,24 @@ const Investment = () => {
     return filtered;
   };
 
-  // 🔧 FUNÇÃO PARA RELAXAR FILTROS QUANDO POUCOS FIIs
-  const relaxFiltersWithDebug = (allFIIs, formData) => {
-    console.log("\n🔧 RELAXANDO FILTROS...");
-
-    let filtered = [...allFIIs];
-
-    // Filtros básicos apenas
-    filtered = filtered.filter((fii) => {
-      return (
-        fii.price &&
-        fii.price > 0 &&
-        fii.dividendYield &&
-        fii.dividendYield > 0 &&
-        fii.sector
-      );
-    });
-
-    // Filtros relaxados por perfil
-    if (formData.riskProfile === "conservador") {
-      filtered = filtered.filter((fii) => {
-        return fii.dividendYield >= 4 && (!fii.pvp || fii.pvp <= 1.5); // Mais flexível
-      });
-    } else if (formData.riskProfile === "moderado") {
-      filtered = filtered.filter((fii) => {
-        return fii.dividendYield >= 3 && (!fii.pvp || fii.pvp <= 2.0); // Mais flexível
-      });
-    } else if (formData.riskProfile === "arrojado") {
-      filtered = filtered.filter((fii) => {
-        return fii.dividendYield >= 2; // Muito flexível
-      });
-    }
-
-    console.log(`✅ Filtros relaxados: ${filtered.length} FIIs`);
-    return filtered;
-  };
-
-  // 🔧 Validar e otimizar carteira sugerida
-  const validateAndOptimizePortfolio = (
+  // 🔧 VALIDAR E CALCULAR ALOCAÇÕES CORRETAS (corrigir NaN%)
+  const validateAndCalculateAllocations = (
     aiAnalysis,
     totalAmount,
     availableFIIs
   ) => {
     try {
-      // Validar se sugestões existem
       if (!aiAnalysis.suggestions || aiAnalysis.suggestions.length === 0) {
         throw new Error("Nenhuma sugestão válida da IA");
       }
 
-      // Validar cada sugestão
+      console.log(
+        `\n💰 CALCULANDO ALOCAÇÕES PARA R$ ${totalAmount.toLocaleString()}`
+      );
+
+      // Validar cada sugestão e calcular valores corretos
       const validatedSuggestions = aiAnalysis.suggestions
-        .map((suggestion) => {
+        .map((suggestion, index) => {
           // Encontrar FII correspondente nos dados disponíveis
           const fiiData = availableFIIs.find(
             (fii) => fii.ticker === suggestion.ticker
@@ -405,31 +375,75 @@ const Investment = () => {
             return null;
           }
 
-          // Calcular valores se não fornecidos pela IA
+          // 🔧 CALCULAR VALORES CORRETOS
           const price = fiiData.price || suggestion.price || 0;
-          const recommendedAmount =
-            suggestion.recommendedAmount ||
-            totalAmount / aiAnalysis.suggestions.length;
+
+          // Se a IA não forneceu percentage, calcular baseado em divisão igual
+          let percentage = suggestion.percentage;
+          if (!percentage || isNaN(percentage)) {
+            percentage = 100 / aiAnalysis.suggestions.length; // Divisão igual
+            console.log(
+              `📊 Calculando percentage para ${suggestion.ticker}: ${percentage}%`
+            );
+          }
+
+          const recommendedAmount = (totalAmount * percentage) / 100;
           const shares = Math.floor(recommendedAmount / price);
           const actualAmount = shares * price;
+          const actualPercentage = (actualAmount / totalAmount) * 100;
+
+          console.log(`💎 ${suggestion.ticker}:`);
+          console.log(`   Preço: R$ ${price}`);
+          console.log(`   Percentage planejado: ${percentage}%`);
+          console.log(
+            `   Valor planejado: R$ ${recommendedAmount.toLocaleString()}`
+          );
+          console.log(`   Cotas: ${shares}`);
+          console.log(`   Valor real: R$ ${actualAmount.toLocaleString()}`);
+          console.log(`   Percentage real: ${actualPercentage.toFixed(1)}%`);
 
           return {
             ...suggestion,
             price: price,
             shares: shares,
             recommendedAmount: actualAmount,
+            percentage: Math.round(actualPercentage * 100) / 100, // 🔧 CORRIGIR NaN%
             // Manter dados originais do FII
             dividendYield: fiiData.dividendYield,
             pvp: fiiData.pvp,
             sector: fiiData.sector,
             marketCap: fiiData.marketCap,
+            qualityScore: fiiData.qualityScore,
           };
         })
         .filter((suggestion) => suggestion !== null);
 
+      // 🔧 RECALCULAR SUMMARY CORRETAMENTE
+      const totalInvestment = validatedSuggestions.reduce(
+        (sum, s) => sum + s.recommendedAmount,
+        0
+      );
+      const averageYield =
+        validatedSuggestions.reduce((sum, s) => sum + s.dividendYield, 0) /
+        validatedSuggestions.length;
+      const averagePVP =
+        validatedSuggestions.reduce((sum, s) => sum + s.pvp, 0) /
+        validatedSuggestions.length;
+
+      console.log(`\n📊 RESUMO FINAL:`);
+      console.log(`   Total investido: R$ ${totalInvestment.toLocaleString()}`);
+      console.log(`   DY médio: ${averageYield.toFixed(1)}%`);
+      console.log(`   P/VP médio: ${averagePVP.toFixed(2)}`);
+
       return {
         ...aiAnalysis,
         suggestions: validatedSuggestions,
+        summary: {
+          ...aiAnalysis.summary,
+          totalInvestment: totalInvestment,
+          averageYield: averageYield,
+          averagePVP: averagePVP,
+        },
       };
     } catch (error) {
       console.error("❌ Erro ao validar carteira:", error);
@@ -467,7 +481,7 @@ const Investment = () => {
         </h1>
         <p className="text-muted-foreground">
           Descubra os melhores FIIs para seu perfil com análise fundamentalista
-          por IA
+          por IA SUPREMA
         </p>
       </div>
 
@@ -483,7 +497,11 @@ const Investment = () => {
         </Alert>
       )}
 
-      <Tabs defaultValue="analysis" className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-4"
+      >
         <TabsList>
           <TabsTrigger value="analysis">Nova Análise</TabsTrigger>
           <TabsTrigger value="results">Resultados</TabsTrigger>
@@ -495,11 +513,11 @@ const Investment = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="h-5 w-5" />
-                Configurar Análise de Investimento
+                Configurar Análise ULTIMATE de Investimento
               </CardTitle>
               <CardDescription>
                 Configure seus parâmetros para receber sugestões personalizadas
-                de FIIs
+                de FIIs com IA SUPREMA
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -521,7 +539,7 @@ const Investment = () => {
                   <div className="flex items-center gap-3">
                     <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
                     <span className="font-medium">
-                      Analisando investimentos...
+                      Analisando investimentos com IA SUPREMA...
                     </span>
                   </div>
 
@@ -554,44 +572,50 @@ const Investment = () => {
           {/* Resultados */}
           {suggestions && !isLoading && (
             <div className="space-y-6">
-              {/* Resumo da Análise */}
+              {/* Resumo da Análise ULTIMATE */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5" />
-                    Resumo da Análise
+                    Resumo da Análise ULTIMATE
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="text-center">
                       <div className="text-2xl font-bold text-blue-600">
                         {suggestions.totalFIIsAnalyzed}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        FIIs Analisados
+                        FIIs Carregados
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-green-600">
-                        {suggestions.eligibleFIIs}
+                        {suggestions.bestFIIsSelected}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        FIIs Elegíveis
+                        Melhores Selecionados
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-purple-600">
-                        {suggestions.topFIIsForAI ||
-                          suggestions.suggestions?.length ||
-                          0}
+                        {suggestions.finalFIIsForAI}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Top FIIs IA
+                        Enviados para IA
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-orange-600">
+                        {suggestions.suggestions?.length || 0}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Sugestões Finais
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-600">
                         {suggestions.summary?.averageYield?.toFixed(1) || "N/A"}
                         %
                       </div>
@@ -615,7 +639,7 @@ const Investment = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <PieChart className="h-5 w-5" />
-                      Análise de Mercado
+                      Análise de Mercado SUPREMA
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -637,6 +661,42 @@ const Investment = () => {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Estratégia da Carteira */}
+              {suggestions.portfolioStrategy && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5" />
+                      Estratégia da Carteira
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="font-medium mb-2">Abordagem Geral</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {suggestions.portfolioStrategy.overallApproach}
+                        </p>
+                      </div>
+
+                      <div>
+                        <h4 className="font-medium mb-2">Gestão de Risco</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {suggestions.portfolioStrategy.riskManagement}
+                        </p>
+                      </div>
+
+                      <div>
+                        <h4 className="font-medium mb-2">Retorno Esperado</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {suggestions.portfolioStrategy.expectedReturn}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 
@@ -650,7 +710,7 @@ const Investment = () => {
                     <h3 className="font-medium">Nenhuma análise realizada</h3>
                     <p className="text-sm text-muted-foreground">
                       Configure uma nova análise para ver sugestões de
-                      investimento
+                      investimento com IA SUPREMA
                     </p>
                   </div>
                 </div>

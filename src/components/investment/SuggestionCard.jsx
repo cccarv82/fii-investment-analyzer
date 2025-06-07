@@ -42,12 +42,19 @@ const SuggestionCard = ({
     reasoning,
     strengths = [],
     weaknesses = [],
+    risks = [],
+    score,
+    targetPrice,
+    riskLevel,
+    macroAnalysis,
+    fundamentalAnalysis,
   } = suggestion;
 
   const getRiskColor = (riskLevel) => {
-    switch (riskLevel) {
+    switch (riskLevel?.toLowerCase()) {
       case "baixo":
         return "bg-green-500";
+      case "médio":
       case "medio":
         return "bg-yellow-500";
       case "alto":
@@ -69,12 +76,50 @@ const SuggestionCard = ({
     return "text-red-600";
   };
 
-  // 🔧 CORREÇÃO: Calcular valor corretamente
+  // 🔧 CORREÇÃO DEFINITIVA: Calcular valor corretamente
   const calculateValue = () => {
-    if (shares && price) {
+    // Prioridade: 1. recommendedAmount, 2. shares * price, 3. investmentAmount
+    if (
+      recommendedAmount &&
+      !isNaN(recommendedAmount) &&
+      recommendedAmount > 0
+    ) {
+      return recommendedAmount;
+    }
+
+    if (shares && price && !isNaN(shares) && !isNaN(price)) {
       return shares * price;
     }
-    return recommendedAmount || investmentAmount || 0;
+
+    if (investmentAmount && !isNaN(investmentAmount) && investmentAmount > 0) {
+      return investmentAmount;
+    }
+
+    return 0;
+  };
+
+  // 🔧 CORREÇÃO DEFINITIVA: Calcular percentage corretamente
+  const calculatePercentage = () => {
+    if (percentage && !isNaN(percentage) && percentage > 0) {
+      return percentage;
+    }
+
+    // Se não tem percentage, assumir 25% (4 FIIs = 100%)
+    return 25;
+  };
+
+  // 🔧 CORREÇÃO DEFINITIVA: Calcular shares corretamente
+  const calculateShares = () => {
+    if (shares && !isNaN(shares) && shares > 0) {
+      return shares;
+    }
+
+    const value = calculateValue();
+    if (value > 0 && price && !isNaN(price) && price > 0) {
+      return Math.floor(value / price);
+    }
+
+    return 0;
   };
 
   // Renderização em lista (compacta)
@@ -94,7 +139,6 @@ const SuggestionCard = ({
                   </div>
                 </div>
               </div>
-
               <Badge variant="secondary" className="text-xs">
                 {sector || "N/A"}
               </Badge>
@@ -106,7 +150,6 @@ const SuggestionCard = ({
                 <div className="text-sm text-muted-foreground">Preço</div>
                 <div className="font-semibold">{formatCurrency(price)}</div>
               </div>
-
               <div className="text-center">
                 <div className="text-sm text-muted-foreground">DY</div>
                 <div
@@ -115,31 +158,27 @@ const SuggestionCard = ({
                   {formatPercentage(dividendYield)}
                 </div>
               </div>
-
               <div className="text-center">
                 <div className="text-sm text-muted-foreground">P/VP</div>
                 <div className={`font-semibold ${getPVPColor(pvp)}`}>
                   {pvp?.toFixed(2) || "N/A"}
                 </div>
               </div>
-
               <div className="text-center">
                 <div className="text-sm text-muted-foreground">Alocação</div>
                 <div className="font-semibold">
-                  {formatPercentage(percentage)}
+                  {formatPercentage(calculatePercentage())}
                 </div>
               </div>
-
               <div className="text-center">
                 <div className="text-sm text-muted-foreground">Valor</div>
                 <div className="font-semibold">
                   {formatCurrency(calculateValue())}
                 </div>
               </div>
-
               <div className="text-center">
                 <div className="text-sm text-muted-foreground">Cotas</div>
-                <div className="font-semibold">{shares || 0}</div>
+                <div className="font-semibold">{calculateShares()}</div>
               </div>
             </div>
 
@@ -168,7 +207,7 @@ const SuggestionCard = ({
     );
   }
 
-  // Renderização em card (detalhada) - ORIGINAL CORRIGIDA
+  // Renderização em card (detalhada) - VERSÃO CORRIGIDA
   return (
     <Card className="w-full hover:shadow-lg transition-shadow duration-200">
       <CardHeader className="pb-3">
@@ -177,14 +216,22 @@ const SuggestionCard = ({
             <CardTitle className="flex items-center gap-2 text-lg">
               <Building className="h-5 w-5 text-primary" />
               {ticker}
+              {score && (
+                <Badge variant="outline" className="ml-2">
+                  Score: {score}/10
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription className="mt-1">{name || ticker}</CardDescription>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold">{formatCurrency(price)}</div>
-            <Badge variant="secondary" className="mt-1">
-              {sector || "N/A"}
-            </Badge>
+            <div className="flex gap-2 mt-1">
+              <Badge variant="secondary">{sector || "N/A"}</Badge>
+              {riskLevel && (
+                <Badge className={getRiskColor(riskLevel)}>{riskLevel}</Badge>
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -216,13 +263,15 @@ const SuggestionCard = ({
           </div>
         </div>
 
-        {/* Alocação Recomendada */}
+        {/* Alocação Recomendada - CORRIGIDA */}
         <div className="space-y-2">
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">Alocação Recomendada</span>
-            <span className="font-medium">{formatPercentage(percentage)}</span>
+            <span className="font-medium">
+              {formatPercentage(calculatePercentage())}
+            </span>
           </div>
-          <Progress value={percentage} className="h-2" />
+          <Progress value={calculatePercentage()} className="h-2" />
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Valor: </span>
@@ -232,35 +281,39 @@ const SuggestionCard = ({
             </div>
             <div>
               <span className="text-muted-foreground">Cotas: </span>
-              <span className="font-medium">{shares || 0}</span>
+              <span className="font-medium">{calculateShares()}</span>
             </div>
           </div>
-          <div className="text-sm">
-            <span className="text-muted-foreground">Investimento real: </span>
-            <span className="font-medium">
-              {formatCurrency(investmentAmount || calculateValue())}
-            </span>
-          </div>
+          {targetPrice && (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Preço-alvo 12m: </span>
+              <span className="font-medium text-green-600">
+                {formatCurrency(targetPrice)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Análise */}
         <div className="space-y-2">
-          <h4 className="text-sm font-medium">Análise</h4>
+          <h4 className="text-sm font-medium">Análise Fundamentalista</h4>
           <p className="text-sm text-muted-foreground">
-            {reasoning || "High DY and low P/VP ratio"}
+            {reasoning || "Análise baseada em métricas fundamentalistas"}
           </p>
         </div>
 
-        {/* Pontos Fortes e Fracos */}
-        {(strengths.length > 0 || weaknesses.length > 0) && (
-          <div className="space-y-2">
+        {/* Pontos Fortes e Riscos */}
+        {(strengths.length > 0 ||
+          (risks && risks.length > 0) ||
+          weaknesses.length > 0) && (
+          <div className="space-y-3">
             {strengths.length > 0 && (
               <div>
                 <h5 className="text-xs font-medium text-green-600 mb-1">
                   Pontos Fortes
                 </h5>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  {strengths.slice(0, 2).map((strength, index) => (
+                  {strengths.slice(0, 3).map((strength, index) => (
                     <li key={index} className="flex items-start gap-1">
                       <Star className="h-3 w-3 text-green-500 mt-0.5 flex-shrink-0" />
                       {strength}
@@ -269,16 +322,17 @@ const SuggestionCard = ({
                 </ul>
               </div>
             )}
-            {weaknesses.length > 0 && (
+
+            {((risks && risks.length > 0) || weaknesses.length > 0) && (
               <div>
                 <h5 className="text-xs font-medium text-red-600 mb-1">
                   Pontos de Atenção
                 </h5>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  {weaknesses.slice(0, 2).map((weakness, index) => (
+                  {(risks || weaknesses).slice(0, 2).map((risk, index) => (
                     <li key={index} className="flex items-start gap-1">
                       <TrendingDown className="h-3 w-3 text-red-500 mt-0.5 flex-shrink-0" />
-                      {weakness}
+                      {risk}
                     </li>
                   ))}
                 </ul>
@@ -287,74 +341,128 @@ const SuggestionCard = ({
           </div>
         )}
 
-        {/* Ações */}
+        {/* Análise Macro (se disponível) */}
+        {macroAnalysis && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Contexto Macroeconômico</h4>
+            <div className="text-xs text-muted-foreground space-y-1">
+              {macroAnalysis.selicImpact && (
+                <div>
+                  <span className="font-medium">Selic: </span>
+                  {macroAnalysis.selicImpact}
+                </div>
+              )}
+              {macroAnalysis.sectorTrends && (
+                <div>
+                  <span className="font-medium">Setor: </span>
+                  {macroAnalysis.sectorTrends}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Botões de Ação */}
         <div className="flex gap-2 pt-2">
           <Button
-            onClick={() => onAddToPortfolio(suggestion)}
-            className="flex-1"
+            onClick={() =>
+              onAddToPortfolio({
+                ...suggestion,
+                shares: calculateShares(),
+                recommendedAmount: calculateValue(),
+                percentage: calculatePercentage(),
+              })
+            }
             disabled={isLoading}
+            className="flex-1"
           >
             <DollarSign className="mr-2 h-4 w-4" />
             Adicionar à Carteira
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => onViewDetails?.(ticker)}
-            disabled={isLoading}
-          >
-            Detalhes
-          </Button>
+          {onViewDetails && (
+            <Button
+              variant="outline"
+              onClick={() => onViewDetails(ticker)}
+              disabled={isLoading}
+            >
+              Detalhes
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
   );
 };
 
-// 🎯 Componente para alternar entre visualizações
+// 🎯 Componente para lista de sugestões
 export const SuggestionsList = ({
   suggestions,
   onAddToPortfolio,
-  onViewDetails,
-  isLoading = false,
+  viewMode = "card",
 }) => {
-  const [viewMode, setViewMode] = useState("card"); // 'card' ou 'list'
+  const [currentViewMode, setCurrentViewMode] = useState(viewMode);
+
+  if (!suggestions || suggestions.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center space-y-4">
+            <Building className="h-12 w-12 text-muted-foreground mx-auto" />
+            <div>
+              <h3 className="font-medium">Nenhuma sugestão disponível</h3>
+              <p className="text-sm text-muted-foreground">
+                Execute uma análise para ver sugestões de investimento
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {/* Toggle de visualização */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Carteira Sugerida</h3>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={viewMode === "card" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("card")}
-          >
-            <Grid3X3 className="h-4 w-4 mr-1" />
-            Cards
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("list")}
-          >
-            <List className="h-4 w-4 mr-1" />
-            Lista
-          </Button>
-        </div>
-      </div>
+      {/* Header com controles */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Building className="h-5 w-5" />
+                Carteira Sugerida
+              </CardTitle>
+              <CardDescription>
+                {suggestions.length} FIIs recomendados pela análise IA SUPREMA
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant={currentViewMode === "card" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCurrentViewMode("card")}
+              >
+                <Grid3X3 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={currentViewMode === "list" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCurrentViewMode("list")}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       {/* Lista de sugestões */}
-      <div className={viewMode === "card" ? "grid gap-4" : "space-y-2"}>
+      <div className={currentViewMode === "card" ? "grid gap-6" : "space-y-4"}>
         {suggestions.map((suggestion, index) => (
           <SuggestionCard
-            key={suggestion.ticker}
+            key={`${suggestion.ticker}-${index}`}
             suggestion={suggestion}
-            index={index}
             onAddToPortfolio={onAddToPortfolio}
-            onViewDetails={onViewDetails}
-            isLoading={isLoading}
-            viewMode={viewMode}
+            viewMode={currentViewMode}
           />
         ))}
       </div>

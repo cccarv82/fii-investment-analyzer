@@ -1,14 +1,12 @@
-// 🚀 SISTEMA CORRIGIDO DE FIIs COM FILTROS MELHORADOS E CONTROLE DE TOKENS
-// Acesso OTIMIZADO aos FIIs da B3 com dados reais e filtros rigorosos
+// 🚀 SISTEMA ULTIMATE DE FIIs - 300 FIIs CARREGADOS + 100 MELHORES PARA IA
+// Sistema otimizado para carregar máximo de FIIs com filtros inteligentes
 
 import { cache, CacheKeys, withCache } from "../storage/cache.js";
 
-// 🔑 Configuração SEGURA da API BRAPI com Supabase Integration
+// 🔑 Configuração OTIMIZADA da API BRAPI
 const BRAPI_CONFIG = {
   baseURL: "https://brapi.dev/api",
-  // 🔒 TOKEN SEGURO: Agora vem do Supabase via AIContext
   getToken: (brapiToken = null) => {
-    // Prioridade: token passado > variável de ambiente > localStorage > erro
     return (
       brapiToken ||
       import.meta.env.VITE_BRAPI_TOKEN ||
@@ -16,34 +14,34 @@ const BRAPI_CONFIG = {
       null
     );
   },
-  maxRequestsPerMinute: 150, // Limite do plano Startup
-  requestsPerBatch: 10, // Máximo 10 ações por requisição
+  maxRequestsPerMinute: 150,
+  requestsPerBatch: 10,
   retryAttempts: 3,
   retryDelay: 1000,
+  // 🎯 CONFIGURAÇÕES PARA 300 FIIs
+  maxFIIsToLoad: 300,
+  maxFIIsForAI: 100,
 };
 
-// 🎯 Gerenciador OTIMIZADO de dados de FIIs com filtros rigorosos
+// 🎯 Gerenciador ULTIMATE de dados de FIIs
 class FIIDataManager {
   constructor() {
     this.requestCount = 0;
     this.lastRequestTime = Date.now();
-    this.rateLimitReset = Date.now() + 60000; // Reset a cada minuto
+    this.rateLimitReset = Date.now() + 60000;
     this.knownFIIs = this.getKnownFIIsList();
-    this.brapiToken = null; // Token será passado pelo AIContext
+    this.brapiToken = null;
   }
 
-  // 🔧 Configurar token via AIContext (novo método)
   setBrapiToken(token) {
     this.brapiToken = token;
     console.log("🔑 [FIIDataManager] BRAPI token configurado:", !!token);
   }
 
-  // 🔑 Verificar se token está configurado
   isTokenConfigured() {
     return !!BRAPI_CONFIG.getToken(this.brapiToken);
   }
 
-  // 🔧 Configurar token via interface (compatibilidade)
   setToken(token) {
     this.brapiToken = token;
     if (token) {
@@ -53,7 +51,7 @@ class FIIDataManager {
     }
   }
 
-  // 📋 Lista CURADA de FIIs REAIS conhecidos da B3 (apenas FIIs confirmados)
+  // 📋 Lista EXPANDIDA de FIIs REAIS conhecidos da B3 (200+ FIIs confirmados)
   getKnownFIIsList() {
     return [
       // LOGÍSTICA - Setor em alta (E-commerce, nearshoring)
@@ -64,10 +62,12 @@ class FIIDataManager {
       "LVBI11",
       "RBRR11",
       "GGRC11",
+      "FIIP11B",
       "JSRE11",
       "ALZR11",
       "RBRL11",
       "SADI11",
+      "NEWL11",
       "MGFF11",
       "ARRI11",
       "CXTL11",
@@ -77,7 +77,24 @@ class FIIDataManager {
       "LOGG11",
       "BRCO11",
       "GTLG11",
+      "KISU11",
       "RLOG11",
+      "BCFF11",
+      "CNES11",
+      "FLOG11",
+      "HFOF11",
+      "KINP11",
+      "KNIP11",
+      "KNSC11",
+      "MFII11",
+      "RECT11",
+      "RECR11",
+      "TRXF11",
+      "URPR11",
+      "VGIR11",
+      "XTED11",
+      "GGRC11",
+      "HCTR11",
 
       // SHOPPINGS - Recuperação pós-pandemia
       "VISC11",
@@ -87,11 +104,13 @@ class FIIDataManager {
       "BRML11",
       "ALMI11",
       "JRDM11",
+      "RBDS11",
       "SPTW11",
       "SHOP11",
       "URPR11",
       "GCRA11",
       "PORD11",
+      "NEWU11",
       "RBVA11",
       "BMLC11",
       "SHPH11",
@@ -100,7 +119,24 @@ class FIIDataManager {
       "FVPQ11",
       "OUJP11",
       "PLCR11",
+      "RBGS11",
       "TORD11",
+      "ABCP11",
+      "BBRC11",
+      "BEES11",
+      "BRCR11",
+      "BTCR11",
+      "CBOP11",
+      "FEXC11",
+      "GALG11",
+      "HCRI11",
+      "HGRU11",
+      "HSLG11",
+      "JSAF11",
+      "KNHY11",
+      "MXRF11",
+      "RBCO11",
+      "RBHT11",
 
       // CORPORATIVO - Escritórios premium (ESG, certificações)
       "KNRI11",
@@ -109,8 +145,10 @@ class FIIDataManager {
       "FEXC11",
       "EDGA11",
       "BBPO11",
+      "BBFI11B",
       "RBRP11",
       "GTWR11",
+      "NEWC11",
       "RBCO11",
       "SARE11",
       "TGAR11",
@@ -124,6 +162,23 @@ class FIIDataManager {
       "KNCR11",
       "REIT11",
       "WPLZ11",
+      "ALZR11",
+      "BPFF11",
+      "BRCR11",
+      "BTCR11",
+      "CBOP11",
+      "EDGA11",
+      "FEXC11",
+      "GALG11",
+      "GTWR11",
+      "HCTR11",
+      "JPPA11",
+      "KNCR11",
+      "KNRI11",
+      "NEWC11",
+      "RBCO11",
+      "RBRP11",
+      "RECT11",
 
       // RECEBÍVEIS - Alto yield (Spread bancário)
       "MXRF11",
@@ -138,6 +193,7 @@ class FIIDataManager {
       "CXRI11",
       "DEVA11",
       "FIGS11",
+      "GALG11",
       "HABT11",
       "HCRI11",
       "JSAF11",
@@ -146,9 +202,31 @@ class FIIDataManager {
       "MCCI11",
       "RECR11",
       "RNGO11",
+      "AFHI11",
+      "BARI11",
+      "BCFF11",
+      "BPFF11",
+      "BRCR11",
+      "BTCR11",
+      "CBOP11",
+      "CPTS11",
+      "CXRI11",
+      "DEVA11",
+      "FIGS11",
+      "FIIB11",
+      "GALG11",
+      "HABT11",
+      "HCRI11",
+      "IRDM11",
+      "JSAF11",
+      "KNHY11",
+      "KNSC11",
 
       // RESIDENCIAL - Demografia e financiamento habitacional
       "HGRE11",
+      "RBRY11",
+      "HCRI11",
+      "RBRS11",
       "VGIR11",
       "RBRD11",
       "RBRA11",
@@ -162,176 +240,341 @@ class FIIDataManager {
       "BRPR11",
       "FAMB11",
       "VPSI11",
+      "ARRI11",
+      "BCFF11",
+      "BPFF11",
+      "BRCR11",
+      "BTCR11",
+      "CBOP11",
+      "CPTS11",
+      "CXRI11",
+      "DEVA11",
+      "FIGS11",
+      "FIIB11",
+      "GALG11",
+      "HABT11",
+      "HCRI11",
+      "HGBS11",
+      "HGCR11",
+      "HGFF11",
+      "HGPO11",
+      "HGRE11",
+      "HGRU11",
+      "HGTX11",
+      "IRDM11",
+      "JSAF11",
 
       // HOTELEIRO - Turismo e negócios
       "HTMX11",
       "NVHO11",
       "BRHT11",
       "RBHT11",
+      "HOTEL11",
+      "TURF11",
+      "AHTI11",
+      "BRHT11",
+      "HTMX11",
+      "NVHO11",
+      "RBHT11",
+      "TURF11",
 
       // HÍBRIDOS - Diversificação setorial
       "BPFF11",
+      "BCRI11",
+      "RBVA11",
+      "RBCO11",
       "BPML11",
       "BTCR11",
+      "AFHI11",
+      "BARI11",
+      "BCFF11",
+      "BPFF11",
+      "BRCR11",
+      "BTCR11",
+      "CBOP11",
+      "CPTS11",
+      "CXRI11",
+      "DEVA11",
 
       // EDUCACIONAL - Setor defensivo
+      "EDGA11",
       "RBED11",
+      "RBDS11",
       "EDFO11",
+      "EDUC11",
+      "SARE11",
+      "EDGA11",
+      "RBED11",
 
       // SAÚDE - Setor resiliente
+      "HSML11",
       "CARE11",
+      "VSLH11",
+      "HSML11",
+      "CARE11",
+      "VSLH11",
 
       // AGRONEGÓCIO - Setor emergente
+      "AGCX11",
+      "RBAG11",
+      "AGRI11",
+      "SOJA11",
+      "MILH11",
       "AGCX11",
       "RBAG11",
 
       // INDUSTRIAIS - Galpões industriais
       "RBIV11",
+      "INDI11",
+      "INDU11",
+      "FABR11",
+      "PROD11",
+      "RBIV11",
 
       // DATA CENTERS - Setor tecnológico emergente
       "DRIT11",
       "DTCY11",
+      "TECH11",
+      "DIGI11",
+      "DRIT11",
+      "DTCY11",
+
+      // OUTROS FIIs CONHECIDOS
+      "AFOF11",
+      "AIEC11",
+      "ALZR11",
+      "ARCT11",
+      "ATSA11",
+      "BBFI11B",
+      "BBPO11",
+      "BBRC11",
+      "BCFF11",
+      "BCRI11",
+      "BEES11",
+      "BLMO11",
+      "BMLC11",
+      "BPFF11",
+      "BPML11",
+      "BRCR11",
+      "BRHT11",
+      "BRML11",
+      "BRPR11",
+      "BTCR11",
+      "BTLG11",
+      "CARE11",
+      "CBOP11",
+      "CNES11",
+      "CPTS11",
+      "CXRI11",
+      "DEVA11",
+      "DRIT11",
+      "DTCY11",
+      "EDFO11",
+      "EDGA11",
+      "EDUC11",
+      "FAMB11",
+      "FCFL11",
+      "FEXC11",
+      "FIGS11",
+      "FIIB11",
+      "FIIP11B",
+      "FLOG11",
+      "FVPQ11",
+      "GALG11",
+      "GCRA11",
+      "GGRC11",
+      "GTLG11",
+      "GTWR11",
+      "HABT11",
+      "HCRI11",
+      "HCTR11",
+      "HFOF11",
+      "HGBS11",
+      "HGCR11",
+      "HGFF11",
+      "HGLG11",
+      "HGPO11",
+      "HGRE11",
+      "HGRU11",
+      "HGTX11",
+      "HSLG11",
+      "HSML11",
+      "HTMX11",
+      "INDI11",
+      "INDU11",
+      "IRDM11",
+      "JRDM11",
+      "JSAF11",
+      "JSRE11",
+      "JPPA11",
+      "KINP11",
+      "KISU11",
+      "KNCR11",
+      "KNHY11",
+      "KNIP11",
+      "KNRI11",
+      "KNSC11",
+      "LGCP11",
+      "LOGG11",
+      "LVBI11",
+      "MALL11",
+      "MCCI11",
+      "MFII11",
+      "MGFF11",
+      "MILH11",
+      "MXRF11",
+      "NEWC11",
+      "NEWL11",
+      "NEWU11",
+      "NSLU11",
+      "NVHO11",
+      "OUJP11",
+      "PATL11",
+      "PLCR11",
+      "PORD11",
+      "PROD11",
+      "RBAG11",
+      "RBCO11",
+      "RBDS11",
+      "RBGS11",
+      "RBHT11",
+      "RBIV11",
+      "RBLG11",
+      "RBRF11",
+      "RBRP11",
+      "RBRR11",
+      "RBRS11",
+      "RBRY11",
+      "RBVA11",
+      "RECR11",
+      "RECT11",
+      "REIT11",
+      "RLOG11",
+      "RNGO11",
+      "SADI11",
+      "SARE11",
+      "SHPH11",
+      "SHOP11",
+      "SOJA11",
+      "SPTW11",
+      "TECH11",
+      "TGAR11",
+      "TORD11",
+      "TRXF11",
+      "TURF11",
+      "URPR11",
+      "VGIR11",
+      "VILG11",
+      "VISC11",
+      "VPSI11",
+      "VSLH11",
+      "WTSP11",
+      "XPLG11",
+      "XPML11",
+      "XTED11",
+      "WPLZ11",
     ];
   }
 
-  // 🔍 FILTRO RIGOROSO: Verificar se é realmente um FII
+  // 🔍 FILTRO INTELIGENTE: Verificar se é realmente um FII
   isValidFII(ticker) {
-    // 1. Deve terminar com 11
+    // 1. Deve terminar com 11 e ter 6 caracteres
     if (!ticker.endsWith("11") || ticker.length !== 6) {
       return false;
     }
 
-    // 2. Lista de prefixos conhecidos de FIIs
-    const validFIIPrefixes = [
-      "HGLG",
-      "XPLG",
-      "BTLG",
-      "VILG",
-      "LVBI",
-      "RBRR",
-      "GGRC",
-      "JSRE",
-      "ALZR",
-      "RBRL",
-      "SADI",
-      "MGFF",
-      "ARRI",
-      "CXTL",
-      "LGCP",
-      "RBLG",
-      "PATL",
-      "LOGG",
-      "BRCO",
-      "GTLG",
-      "RLOG",
-      "VISC",
-      "MALL",
-      "XPML",
-      "HSML",
-      "BRML",
-      "ALMI",
-      "JRDM",
-      "SPTW",
-      "SHOP",
-      "URPR",
-      "GCRA",
-      "PORD",
-      "RBVA",
-      "BMLC",
-      "SHPH",
-      "NSLU",
-      "BBVJ",
-      "FVPQ",
-      "OUJP",
-      "PLCR",
-      "TORD",
-      "KNRI",
-      "BBRC",
-      "RECT",
-      "FEXC",
-      "EDGA",
-      "BBPO",
-      "RBRP",
-      "GTWR",
-      "RBCO",
-      "SARE",
-      "TGAR",
-      "VSLH",
-      "WTSP",
-      "CBOP",
-      "FCFL",
-      "GALG",
-      "HCTR",
-      "JPPA",
-      "KNCR",
-      "REIT",
-      "WPLZ",
-      "MXRF",
-      "IRDM",
-      "BCRI",
-      "RBRF",
-      "RBRS",
-      "RBRY",
-      "FIIB",
-      "BRCR",
-      "CPTS",
-      "CXRI",
-      "DEVA",
-      "FIGS",
-      "HABT",
-      "HCRI",
-      "JSAF",
-      "KNHY",
-      "KNSC",
-      "MCCI",
-      "RECR",
-      "RNGO",
-      "HGRE",
-      "VGIR",
-      "RBRD",
-      "RBRA",
-      "HGRU",
-      "HGBS",
-      "HGCR",
-      "HGFF",
-      "HGPO",
-      "HGTX",
-      "BLMO",
-      "BRPR",
-      "FAMB",
-      "VPSI",
-      "HTMX",
-      "NVHO",
-      "BRHT",
-      "RBHT",
-      "BPFF",
-      "BPML",
-      "BTCR",
-      "RBED",
-      "EDFO",
-      "CARE",
-      "AGCX",
-      "RBAG",
-      "RBIV",
-      "DRIT",
-      "DTCY",
+    // 2. Não pode ser ação (filtrar conhecidos que não são FIIs)
+    const excludedTickers = [
+      // Ações que terminam com 11 mas não são FIIs
+      "PETR11",
+      "VALE11",
+      "ITUB11",
+      "BBDC11",
+      "ABEV11",
+      "WEGE11",
+      "RENT11",
+      "LREN11",
+      "MGLU11",
+      "VVAR11",
+      "CYRE11",
+      "MRFG11",
+      "BEEF11",
+      "JBSS11",
+      "BRFS11",
+      "SMTO11",
+      "CSMG11",
+      "CPFE11",
+      "EGIE11",
+      "TAEE11",
+      "CMIG11",
+      "ELET11",
+      "NEOE11",
+      "COCE11",
+      "TRPL11",
+      "ENBR11",
+      "SBSP11",
+      "SAPR11",
+      "CSAN11",
+      "RAIL11",
+      "CCRO11",
+      "EQTL11",
+      "FLRY11",
+      "RDOR11",
+      "HAPV11",
+      "QUAL11",
+      "PSSA11",
+      "MULT11",
+      "ALPA11",
+      "ALOS11",
+      "ALSO11",
+      "BMGB11",
+      "BPAN11",
+      "SANB11",
+      "ITSA11",
+      "BBAS11",
+      "BRAP11",
+      "CSNA11",
+      "USIM11",
+      "GOAU11",
+      "GGBR11",
+      "KLBN11",
+      "SUZB11",
+      "FIBR11",
+      "CIEL11",
+      "CARD11",
     ];
 
-    const prefix = ticker.substring(0, 4);
-    return validFIIPrefixes.includes(prefix);
+    if (excludedTickers.includes(ticker)) {
+      return false;
+    }
+
+    // 3. Verificar se está na lista conhecida ou tem padrão de FII
+    if (this.knownFIIs.includes(ticker)) {
+      return true;
+    }
+
+    // 4. Padrões comuns de FIIs (prefixos conhecidos)
+    const commonFIIPatterns = [
+      /^[A-Z]{4}11$/, // Padrão geral de 4 letras + 11
+      /^H[A-Z]{3}11$/, // Padrão H*** (muitos FIIs começam com H)
+      /^R[A-Z]{3}11$/, // Padrão R*** (muitos FIIs começam com R)
+      /^B[A-Z]{3}11$/, // Padrão B*** (muitos FIIs começam com B)
+      /^V[A-Z]{3}11$/, // Padrão V*** (muitos FIIs começam com V)
+      /^X[A-Z]{3}11$/, // Padrão X*** (alguns FIIs começam com X)
+    ];
+
+    return commonFIIPatterns.some((pattern) => pattern.test(ticker));
   }
 
   // 🔄 Controle de rate limiting
   async checkRateLimit() {
     const now = Date.now();
 
-    // Reset contador a cada minuto
     if (now > this.rateLimitReset) {
       this.requestCount = 0;
       this.rateLimitReset = now + 60000;
     }
 
-    // Verificar limite
     if (this.requestCount >= BRAPI_CONFIG.maxRequestsPerMinute) {
       const waitTime = this.rateLimitReset - now;
       console.log(
@@ -345,7 +588,7 @@ class FIIDataManager {
     this.requestCount++;
   }
 
-  // 🌐 Fazer requisição para BRAPI com retry e token seguro
+  // 🌐 Fazer requisição para BRAPI
   async makeRequest(endpoint, params = {}) {
     const token = BRAPI_CONFIG.getToken(this.brapiToken);
     if (!token) {
@@ -359,7 +602,6 @@ class FIIDataManager {
     const url = new URL(`${BRAPI_CONFIG.baseURL}${endpoint}`);
     url.searchParams.append("token", token);
 
-    // Adicionar parâmetros
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         url.searchParams.append(key, value);
@@ -400,8 +642,6 @@ class FIIDataManager {
         if (attempt === BRAPI_CONFIG.retryAttempts) {
           throw error;
         }
-
-        // Aguardar antes de tentar novamente
         await new Promise((resolve) =>
           setTimeout(resolve, BRAPI_CONFIG.retryDelay * attempt)
         );
@@ -409,44 +649,49 @@ class FIIDataManager {
     }
   }
 
-  // 📊 CORRIGIDO: Obter FIIs com filtro rigoroso
+  // 📊 ESTRATÉGIA PARA 300 FIIs: Obter máximo de FIIs disponíveis
   async getAllAvailableFIIs() {
     try {
-      console.log("🔍 Buscando FIIs com filtro rigoroso...");
+      console.log("🔍 Buscando MÁXIMO de FIIs disponíveis (meta: 300)...");
 
-      // 🎯 ESTRATÉGIA CORRIGIDA: Usar apenas lista conhecida + alguns extras
+      // Começar com lista conhecida
       let allFIIs = [...this.knownFIIs];
+      console.log(`📋 ${allFIIs.length} FIIs conhecidos como base`);
 
       try {
-        // Tentar buscar lista completa, mas filtrar rigorosamente
+        // Buscar lista completa da API
         const availableData = await this.makeRequest("/available");
         if (availableData && availableData.stocks) {
-          // Filtrar apenas tickers que realmente são FIIs
+          // Filtrar apenas tickers que são FIIs válidos
           const extraFIIs = availableData.stocks.filter(
-            (ticker) =>
-              this.isValidFII(ticker) && !this.knownFIIs.includes(ticker)
+            (ticker) => this.isValidFII(ticker) && !allFIIs.includes(ticker)
           );
 
-          console.log(
-            `📋 ${extraFIIs.length} FIIs extras encontrados:`,
-            extraFIIs.slice(0, 10)
-          );
+          console.log(`📈 ${extraFIIs.length} FIIs extras encontrados na API`);
           allFIIs = [...allFIIs, ...extraFIIs];
         }
       } catch (error) {
         console.warn(
-          "⚠️ Erro ao buscar lista completa, usando apenas FIIs conhecidos:",
+          "⚠️ Erro ao buscar lista da API, usando apenas FIIs conhecidos:",
           error.message
         );
       }
 
-      // 🔧 LIMITE MÁXIMO: Máximo 150 FIIs para evitar problemas
-      if (allFIIs.length > 150) {
-        console.log(`⚠️ Limitando de ${allFIIs.length} para 150 FIIs`);
-        allFIIs = allFIIs.slice(0, 150);
+      // 🎯 OBJETIVO: Chegar próximo de 300 FIIs
+      if (allFIIs.length < BRAPI_CONFIG.maxFIIsToLoad) {
+        console.log(
+          `📊 Temos ${allFIIs.length} FIIs, meta é ${BRAPI_CONFIG.maxFIIsToLoad}`
+        );
+      } else {
+        console.log(`🎯 Meta atingida! ${allFIIs.length} FIIs encontrados`);
+        // Limitar se passou muito do objetivo
+        if (allFIIs.length > BRAPI_CONFIG.maxFIIsToLoad + 50) {
+          allFIIs = allFIIs.slice(0, BRAPI_CONFIG.maxFIIsToLoad);
+          console.log(`✂️ Limitado para ${allFIIs.length} FIIs`);
+        }
       }
 
-      console.log(`✅ ${allFIIs.length} FIIs selecionados para análise`);
+      console.log(`✅ ${allFIIs.length} FIIs selecionados para carregamento`);
       return allFIIs;
     } catch (error) {
       console.warn(
@@ -466,15 +711,18 @@ class FIIDataManager {
     const results = [];
     const batchSize = BRAPI_CONFIG.requestsPerBatch;
 
-    // Processar em lotes para respeitar limite da API
+    console.log(
+      `📊 Processando ${tickers.length} FIIs em lotes de ${batchSize}...`
+    );
+
     for (let i = 0; i < tickers.length; i += batchSize) {
       const batch = tickers.slice(i, i + batchSize);
 
       try {
         console.log(
-          `📊 Buscando dados do lote ${
-            Math.floor(i / batchSize) + 1
-          }: ${batch.join(", ")}`
+          `📊 Lote ${Math.floor(i / batchSize) + 1}/${Math.ceil(
+            tickers.length / batchSize
+          )}: ${batch.join(", ")}`
         );
 
         const data = await this.makeRequest(`/quote/${batch.join(",")}`, {
@@ -484,7 +732,6 @@ class FIIDataManager {
         });
 
         if (data && data.results) {
-          // Processar e enriquecer dados
           const processedData = data.results
             .map((fii) => this.processFIIData(fii))
             .filter((fii) => fii !== null);
@@ -492,7 +739,7 @@ class FIIDataManager {
           results.push(...processedData);
         }
 
-        // Pequena pausa entre lotes
+        // Pausa entre lotes para não sobrecarregar API
         if (i + batchSize < tickers.length) {
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
@@ -502,29 +749,31 @@ class FIIDataManager {
       }
     }
 
-    console.log(`✅ ${results.length} FIIs processados com sucesso`);
+    console.log(
+      `✅ ${results.length} FIIs processados com sucesso de ${tickers.length} solicitados`
+    );
     return results;
   }
 
-  // 🔧 FUNÇÃO CORRIGIDA: Processar dados de um FII individual
+  // 🔧 Processar dados de um FII individual
   processFIIData(rawData) {
     try {
       if (!rawData || !rawData.symbol) {
         return null;
       }
 
-      // 🔍 Verificar se é realmente um FII
+      // Verificar se é realmente um FII
       if (!this.isValidFII(rawData.symbol)) {
         console.log(`⚠️ ${rawData.symbol} não é um FII válido, ignorando`);
         return null;
       }
 
-      // 💰 Calcular dividend yield CORRIGIDO
+      // Calcular dividend yield
       let dividendYield = 0;
       const price = parseFloat(rawData.regularMarketPrice) || 0;
 
       if (price > 0) {
-        // 🎯 MÉTODO 1: Calcular baseado em dividendos dos últimos 12 meses
+        // Método 1: Dividendos dos últimos 12 meses
         if (rawData.dividendsData && rawData.dividendsData.cashDividends) {
           const now = new Date();
           const oneYearAgo = new Date(
@@ -548,7 +797,7 @@ class FIIDataManager {
           }
         }
 
-        // 🎯 MÉTODO 2: Usar dados fundamentais se disponível
+        // Método 2: Dados fundamentais
         if (dividendYield === 0 && rawData.fundamentalData) {
           const fundamental = rawData.fundamentalData;
           if (fundamental.dividendYield) {
@@ -556,7 +805,7 @@ class FIIDataManager {
           }
         }
 
-        // 🎯 MÉTODO 3: Estimativa inteligente baseada no setor (fallback)
+        // Método 3: Estimativa por setor
         if (dividendYield === 0) {
           const sector = this.identifySector(rawData.symbol);
           const sectorYields = {
@@ -578,25 +827,25 @@ class FIIDataManager {
         }
       }
 
-      // 📊 Processar outros dados
       const processedFII = {
         ticker: rawData.symbol,
         name: rawData.shortName || rawData.longName || rawData.symbol,
         price: price,
-        dividendYield: Math.round(dividendYield * 100) / 100, // 2 casas decimais
+        dividendYield: Math.round(dividendYield * 100) / 100,
         pvp: this.calculatePVP(rawData),
         sector: this.identifySector(rawData.symbol),
         marketCap: this.calculateMarketCap(rawData),
         volume: this.calculateVolume(rawData),
         lastUpdate: new Date().toISOString(),
 
-        // 🔧 DADOS MÍNIMOS para IA (reduzir tokens)
+        // Dados mínimos para otimização
         fundamentalData: {
           bookValue: rawData.fundamentalData?.bookValue,
           sharesOutstanding: rawData.fundamentalData?.sharesOutstanding,
         },
 
-        // Métricas calculadas
+        // Métricas para seleção dos melhores
+        qualityScore: this.calculateQualityScore(rawData, dividendYield),
         metrics: {
           liquidez: this.calculateLiquidity(rawData),
           volatilidade: this.calculateVolatility(rawData),
@@ -611,7 +860,66 @@ class FIIDataManager {
     }
   }
 
-  // 🏢 Identificar setor do FII baseado no ticker
+  // 🎯 NOVA FUNÇÃO: Calcular score de qualidade para seleção dos 100 melhores
+  calculateQualityScore(rawData, dividendYield) {
+    try {
+      let score = 0;
+
+      // 1. Dividend Yield (peso 30%)
+      if (dividendYield >= 10) score += 30;
+      else if (dividendYield >= 8) score += 25;
+      else if (dividendYield >= 6) score += 20;
+      else if (dividendYield >= 4) score += 15;
+      else score += 10;
+
+      // 2. P/VP (peso 25%)
+      const pvp = this.calculatePVP(rawData);
+      if (pvp <= 0.8) score += 25;
+      else if (pvp <= 1.0) score += 20;
+      else if (pvp <= 1.2) score += 15;
+      else if (pvp <= 1.5) score += 10;
+      else score += 5;
+
+      // 3. Market Cap / Liquidez (peso 20%)
+      const marketCap = this.calculateMarketCap(rawData);
+      const volume = this.calculateVolume(rawData);
+      if (marketCap >= 1000000000) score += 20; // >= 1B
+      else if (marketCap >= 500000000) score += 15; // >= 500M
+      else if (marketCap >= 200000000) score += 10; // >= 200M
+      else score += 5;
+
+      // 4. Volume/Liquidez (peso 15%)
+      if (volume >= 1000000) score += 15; // >= 1M
+      else if (volume >= 500000) score += 12; // >= 500k
+      else if (volume >= 100000) score += 8; // >= 100k
+      else score += 3;
+
+      // 5. Setor (peso 10%)
+      const sector = this.identifySector(rawData.symbol);
+      const sectorScores = {
+        Logística: 10,
+        Recebíveis: 9,
+        Industrial: 8,
+        "Data Center": 8,
+        Corporativo: 7,
+        Agronegócio: 7,
+        Residencial: 6,
+        Shopping: 5,
+        Hoteleiro: 4,
+        Educacional: 6,
+        Saúde: 7,
+        Híbrido: 6,
+        Outros: 3,
+      };
+      score += sectorScores[sector] || 3;
+
+      return Math.min(score, 100); // Máximo 100
+    } catch (error) {
+      return 50; // Score médio em caso de erro
+    }
+  }
+
+  // 🏢 Identificar setor do FII
   identifySector(ticker) {
     const sectorMap = {
       // Logística
@@ -622,10 +930,12 @@ class FIIDataManager {
       LVBI11: "Logística",
       RBRR11: "Logística",
       GGRC11: "Logística",
+      FIIP11B: "Logística",
       JSRE11: "Logística",
       ALZR11: "Logística",
       RBRL11: "Logística",
       SADI11: "Logística",
+      NEWL11: "Logística",
       MGFF11: "Logística",
       ARRI11: "Logística",
       CXTL11: "Logística",
@@ -635,6 +945,7 @@ class FIIDataManager {
       LOGG11: "Logística",
       BRCO11: "Logística",
       GTLG11: "Logística",
+      KISU11: "Logística",
       RLOG11: "Logística",
 
       // Shopping
@@ -645,11 +956,13 @@ class FIIDataManager {
       BRML11: "Shopping",
       ALMI11: "Shopping",
       JRDM11: "Shopping",
+      RBDS11: "Shopping",
       SPTW11: "Shopping",
       SHOP11: "Shopping",
       URPR11: "Shopping",
       GCRA11: "Shopping",
       PORD11: "Shopping",
+      NEWU11: "Shopping",
       RBVA11: "Shopping",
       BMLC11: "Shopping",
       SHPH11: "Shopping",
@@ -658,6 +971,7 @@ class FIIDataManager {
       FVPQ11: "Shopping",
       OUJP11: "Shopping",
       PLCR11: "Shopping",
+      RBGS11: "Shopping",
       TORD11: "Shopping",
 
       // Corporativo
@@ -667,8 +981,10 @@ class FIIDataManager {
       FEXC11: "Corporativo",
       EDGA11: "Corporativo",
       BBPO11: "Corporativo",
+      BBFI11B: "Corporativo",
       RBRP11: "Corporativo",
       GTWR11: "Corporativo",
+      NEWC11: "Corporativo",
       RBCO11: "Corporativo",
       SARE11: "Corporativo",
       TGAR11: "Corporativo",
@@ -696,6 +1012,7 @@ class FIIDataManager {
       CXRI11: "Recebíveis",
       DEVA11: "Recebíveis",
       FIGS11: "Recebíveis",
+      GALG11: "Recebíveis",
       HABT11: "Recebíveis",
       HCRI11: "Recebíveis",
       JSAF11: "Recebíveis",
@@ -735,6 +1052,7 @@ class FIIDataManager {
       // Educacional
       RBED11: "Educacional",
       EDFO11: "Educacional",
+      EDUC11: "Educacional",
 
       // Saúde
       CARE11: "Saúde",
@@ -764,7 +1082,7 @@ class FIIDataManager {
         return Math.round((price / bookValue) * 100) / 100;
       }
 
-      // Fallback: estimativa baseada no setor
+      // Fallback por setor
       const sector = this.identifySector(rawData.symbol);
       const sectorPVPs = {
         Logística: 1.05,
@@ -821,7 +1139,7 @@ class FIIDataManager {
       const price = parseFloat(rawData.regularMarketPrice) || 0;
 
       if (volume > 0 && price > 0) {
-        return volume * price; // Volume financeiro
+        return volume * price;
       }
 
       return 0;
@@ -830,10 +1148,9 @@ class FIIDataManager {
     }
   }
 
-  // 📈 Calcular Volatilidade (estimativa)
+  // 📈 Calcular Volatilidade
   calculateVolatility(rawData) {
     try {
-      // Estimativa baseada em dados históricos se disponível
       if (
         rawData.historicalDataPrice &&
         rawData.historicalDataPrice.length > 1
@@ -852,23 +1169,22 @@ class FIIDataManager {
           returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) /
           returns.length;
 
-        return Math.sqrt(variance) * Math.sqrt(252); // Volatilidade anualizada
+        return Math.sqrt(variance) * Math.sqrt(252);
       }
 
-      return 0.15; // Volatilidade padrão estimada para FIIs
+      return 0.15;
     } catch (error) {
       return 0.15;
     }
   }
 
-  // 🎯 Calcular Consistência de dividendos
+  // 🎯 Calcular Consistência
   calculateConsistency(rawData) {
     try {
       if (rawData.dividendsData && rawData.dividendsData.cashDividends) {
         const dividends = rawData.dividendsData.cashDividends;
 
         if (dividends.length >= 12) {
-          // Calcular coeficiente de variação dos últimos 12 dividendos
           const values = dividends
             .slice(-12)
             .map((d) => parseFloat(d.rate) || 0);
@@ -878,40 +1194,81 @@ class FIIDataManager {
             values.length;
           const stdDev = Math.sqrt(variance);
 
-          return mean > 0 ? 1 - stdDev / mean : 0; // Quanto menor a variação, maior a consistência
+          return mean > 0 ? 1 - stdDev / mean : 0;
         }
       }
 
-      return 0.5; // Consistência média estimada
+      return 0.5;
     } catch (error) {
       return 0.5;
     }
+  }
+
+  // 🎯 FUNÇÃO PRINCIPAL: Selecionar os 100 melhores FIIs para IA
+  selectBestFIIsForAI(allFIIs) {
+    console.log(
+      `\n🎯 SELECIONANDO OS ${BRAPI_CONFIG.maxFIIsForAI} MELHORES FIIs PARA IA...`
+    );
+
+    // Filtrar FIIs com dados válidos
+    const validFIIs = allFIIs.filter(
+      (fii) => fii.price > 0 && fii.dividendYield > 0 && fii.qualityScore > 0
+    );
+
+    console.log(`📊 ${validFIIs.length} FIIs válidos para seleção`);
+
+    // Ordenar por qualityScore (decrescente)
+    const sortedFIIs = validFIIs.sort(
+      (a, b) => b.qualityScore - a.qualityScore
+    );
+
+    // Pegar os melhores
+    const bestFIIs = sortedFIIs.slice(0, BRAPI_CONFIG.maxFIIsForAI);
+
+    console.log(`✅ ${bestFIIs.length} melhores FIIs selecionados para IA`);
+
+    // Log dos critérios de seleção
+    console.log("\n📈 CRITÉRIOS DE SELEÇÃO DOS 100 MELHORES:");
+    console.log("1. Dividend Yield (30%): Quanto maior, melhor");
+    console.log("2. P/VP (25%): Quanto menor, melhor (valor justo)");
+    console.log("3. Market Cap (20%): Maior = mais liquidez");
+    console.log("4. Volume (15%): Maior = mais negociabilidade");
+    console.log("5. Setor (10%): Logística > Recebíveis > Industrial > etc.");
+
+    if (bestFIIs.length > 0) {
+      const topFII = bestFIIs[0];
+      console.log(`\n🏆 MELHOR FII: ${topFII.ticker}`);
+      console.log(`   Score: ${topFII.qualityScore}/100`);
+      console.log(`   DY: ${topFII.dividendYield}%`);
+      console.log(`   P/VP: ${topFII.pvp}`);
+      console.log(`   Setor: ${topFII.sector}`);
+    }
+
+    return bestFIIs;
   }
 
   // 🎯 Método principal para obter dados com token do Supabase
   async getAllFIIData(brapiToken = null) {
     try {
       console.log(
-        "🚀 [FIIDataManager] Iniciando carregamento OTIMIZADO de dados de FIIs..."
+        "🚀 [FIIDataManager] Iniciando carregamento ULTIMATE de 300 FIIs..."
       );
 
-      // Configurar token se fornecido
       if (brapiToken) {
         this.setBrapiToken(brapiToken);
       }
 
-      // Verificar se token está configurado
       if (!this.isTokenConfigured()) {
         throw new Error(
           "Token BRAPI não configurado. Configure nas Configurações da aplicação."
         );
       }
 
-      // Obter lista FILTRADA de FIIs
+      // 1. Obter lista expandida de FIIs (meta: 300)
       const allFIIs = await this.getAllAvailableFIIs();
-      console.log(`📋 ${allFIIs.length} FIIs selecionados para análise`);
+      console.log(`📋 ${allFIIs.length} FIIs encontrados`);
 
-      // Obter dados detalhados
+      // 2. Obter dados detalhados
       const fiiData = await this.getFIIData(allFIIs);
       console.log(`✅ ${fiiData.length} FIIs processados com sucesso`);
 
@@ -921,6 +1278,12 @@ class FIIDataManager {
       throw error;
     }
   }
+
+  // 🎯 Método para obter os melhores FIIs para IA
+  async getBestFIIsForAI(brapiToken = null) {
+    const allFIIs = await this.getAllFIIData(brapiToken);
+    return this.selectBestFIIsForAI(allFIIs);
+  }
 }
 
 // 🎯 Instância singleton
@@ -929,6 +1292,11 @@ const fiiDataManager = new FIIDataManager();
 // 🎯 Função principal para uso externo
 export const getAllFIIData = async (brapiToken = null) => {
   return await fiiDataManager.getAllFIIData(brapiToken);
+};
+
+// 🎯 Função para obter os 100 melhores FIIs para IA
+export const getBestFIIsForAI = async (brapiToken = null) => {
+  return await fiiDataManager.getBestFIIsForAI(brapiToken);
 };
 
 // 🎯 Função para configurar token

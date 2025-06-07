@@ -34,15 +34,20 @@ const Dashboard = () => {
     error,
   } = usePortfolio();
 
+  // ✅ CORREÇÃO: Garantir que positions é um array
+  const safePositions = positions || [];
+
   // Calcular maiores posições a partir dos dados reais
-  const topAssets = positions
-    .sort((a, b) => b.totalInvested - a.totalInvested)
+  const topAssets = safePositions
+    .sort((a, b) => (b.totalInvested || 0) - (a.totalInvested || 0))
     .slice(0, 3)
     .map((position) => ({
       ticker: position.ticker,
-      value: position.totalInvested,
+      value: position.totalInvested || 0,
       percentage:
-        totalInvested > 0 ? (position.totalInvested / totalInvested) * 100 : 0,
+        totalInvested > 0
+          ? ((position.totalInvested || 0) / totalInvested) * 100
+          : 0,
     }));
 
   // Calcular performance
@@ -50,7 +55,6 @@ const Dashboard = () => {
     totalInvested > 0
       ? ((currentValue - totalInvested) / totalInvested) * 100
       : 0;
-
   const performanceColor =
     calculatedPerformance >= 0 ? "text-green-600" : "text-red-600";
 
@@ -93,7 +97,7 @@ const Dashboard = () => {
   }
 
   // Estado vazio (primeira vez usando)
-  const isEmpty = totalInvested === 0 && positions.length === 0;
+  const isEmpty = (totalInvested || 0) === 0 && safePositions.length === 0;
 
   if (isEmpty) {
     return (
@@ -211,7 +215,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(totalInvested)}
+              {formatCurrency(totalInvested || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
               Capital aplicado em FIIs
@@ -226,7 +230,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(currentValue)}
+              {formatCurrency(currentValue || 0)}
             </div>
             <p className={`text-xs ${performanceColor}`}>
               {calculatedPerformance >= 0 ? "+" : ""}
@@ -244,7 +248,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(totalDividends)}
+              {formatCurrency(totalDividends || 0)}
             </div>
             <p className="text-xs text-muted-foreground">Total acumulado</p>
           </CardContent>
@@ -257,7 +261,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(monthlyYield)}
+              {formatCurrency(monthlyYield || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
               Média dos últimos 3 meses
@@ -272,52 +276,33 @@ const Dashboard = () => {
         <Card className="col-span-4">
           <CardHeader>
             <CardTitle>Maiores Posições</CardTitle>
-            <CardDescription>
-              Seus principais investimentos em FIIs
-            </CardDescription>
           </CardHeader>
           <CardContent>
-            {topAssets.length > 0 ? (
-              <div className="space-y-4">
-                {topAssets.map((asset, index) => (
-                  <div key={asset.ticker} className="flex items-center">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center mr-4">
-                      <span className="text-sm font-medium text-primary">
-                        {index + 1}
-                      </span>
+            <div className="space-y-8">
+              {topAssets.length > 0 ? (
+                topAssets.map((asset) => (
+                  <div className="flex items-center" key={asset.ticker}>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {asset.ticker}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatCurrency(asset.value)}
+                      </p>
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium leading-none">
-                          {asset.ticker}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatPercentage(asset.percentage)}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground">
-                          {formatCurrency(asset.value)}
-                        </p>
-                        <div className="w-16 h-2 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary rounded-full"
-                            style={{
-                              width: `${Math.min(asset.percentage, 100)}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
+                    <div className="ml-auto font-medium">
+                      {formatPercentage(asset.percentage)}
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <PieChart className="h-8 w-8 mx-auto mb-2" />
-                <p>Nenhuma posição encontrada</p>
-              </div>
-            )}
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    Nenhuma posição encontrada
+                  </p>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -328,82 +313,34 @@ const Dashboard = () => {
             <CardDescription>Últimos proventos recebidos</CardDescription>
           </CardHeader>
           <CardContent>
-            {recentDividends && recentDividends.length > 0 ? (
-              <div className="space-y-4">
-                {recentDividends.slice(0, 5).map((dividend, index) => (
-                  <div key={index} className="flex items-center">
-                    <div className="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mr-4">
-                      <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium leading-none">
-                          {dividend.ticker}
-                        </p>
-                        <p className="text-sm font-medium text-green-600">
-                          {formatCurrency(dividend.amount)}
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
+            <div className="space-y-8">
+              {(recentDividends || []).length > 0 ? (
+                (recentDividends || []).slice(0, 5).map((dividend, index) => (
+                  <div className="flex items-center" key={index}>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {dividend.ticker}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
                         {formatDate(dividend.date)}
                       </p>
                     </div>
+                    <div className="ml-auto font-medium">
+                      {formatCurrency(dividend.amount)}
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Calendar className="h-8 w-8 mx-auto mb-2" />
-                <p>Nenhum dividendo registrado</p>
-              </div>
-            )}
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    Nenhum dividendo registrado
+                  </p>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Resumo de Performance */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <PieChart className="h-5 w-5" />
-            Resumo de Performance
-          </CardTitle>
-          <CardDescription>
-            Análise geral da sua carteira de FIIs
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Rentabilidade Total</h4>
-              <div className="text-2xl font-bold">
-                {formatCurrency(currentValue - totalInvested + totalDividends)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Valorização + Dividendos
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Yield on Cost</h4>
-              <div className="text-2xl font-bold text-green-600">
-                {totalInvested > 0
-                  ? formatPercentage((totalDividends / totalInvested) * 100)
-                  : "0,00%"}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Dividendos / Valor Investido
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Diversificação</h4>
-              <div className="text-2xl font-bold">{positions.length}</div>
-              <p className="text-xs text-muted-foreground">FIIs na carteira</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

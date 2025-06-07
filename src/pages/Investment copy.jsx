@@ -46,7 +46,7 @@ const Investment = () => {
 
   // 🔍 FUNÇÃO DE DEBUG DETALHADO
   const debugFIIData = (fiis, step) => {
-    console.log(`\\n🔍 DEBUG ${step}:`);
+    console.log(`\n🔍 DEBUG ${step}:`);
     console.log(`Total de FIIs: ${fiis.length}`);
     if (fiis.length > 0) {
       const sample = fiis[0];
@@ -89,14 +89,47 @@ const Investment = () => {
 
       // 🔍 DEBUG DETALHADO DOS FILTROS
       if (step === "APÓS FILTROS DE PERFIL" && fiis.length === 0) {
-        console.log("\\n🚨 INVESTIGANDO POR QUE 0 FIIs PASSARAM:");
+        console.log("\n🚨 INVESTIGANDO POR QUE 0 FIIs PASSARAM:");
         console.log("Vamos testar alguns FIIs manualmente...");
 
-        // ❌ REMOVIDO: Dados de teste hardcoded que causavam o problema
-        // Os dados de teste foram removidos para evitar confusão
-        console.log(
-          "✅ Dados de teste removidos - usando apenas dados reais da BRAPI"
-        );
+        // Pegar alguns FIIs dos 100 melhores para testar
+        const testFIIs = [
+          {
+            ticker: "MXRF11",
+            dividendYield: 9.5,
+            pvp: 1.15,
+            sector: "Recebíveis",
+            marketCap: 500000000,
+          },
+          {
+            ticker: "SARE11",
+            dividendYield: 7.2,
+            pvp: 0.95,
+            sector: "Recebíveis",
+            marketCap: 300000000,
+          },
+          {
+            ticker: "KNSC11",
+            dividendYield: 9.5,
+            pvp: 1.15,
+            sector: "Recebíveis",
+            marketCap: 200000000,
+          },
+        ];
+
+        testFIIs.forEach((fii) => {
+          console.log(`\n🧪 TESTE ${fii.ticker}:`);
+          console.log(
+            ` DY: ${fii.dividendYield}% (≥3? ${fii.dividendYield >= 3})`
+          );
+          console.log(` P/VP: ${fii.pvp} (≤2.0? ${fii.pvp <= 2.0})`);
+          console.log(
+            ` Market Cap: ${fii.marketCap} (≥50M? ${
+              (fii.marketCap || 0) >= 50000000
+            })`
+          );
+          console.log(` Setor: ${fii.sector}`);
+        });
       }
     }
   };
@@ -268,7 +301,7 @@ const Investment = () => {
     }
   };
 
-  // 🔧 VALIDAR E CALCULAR ALOCAÇÕES CORRETAS - VERSÃO CORRIGIDA
+  // 🔧 VALIDAR E CALCULAR ALOCAÇÕES CORRETAS
   const validateAndCalculateAllocations = (
     aiAnalysis,
     totalAmount,
@@ -290,30 +323,24 @@ const Investment = () => {
         (fii) => fii.ticker === suggestion.ticker
       );
 
-      // ✅ CORREÇÃO CRÍTICA: Priorizar SEMPRE dados reais da BRAPI
-      const price = fullFIIData?.price || suggestion.price || 0;
+      // Usar dados da IA ou fallback para dados completos
+      const price = suggestion.price || fullFIIData?.price || 0;
       const percentage = suggestion.percentage || equalPercentage;
       const recommendedAmount = (totalAmount * percentage) / 100;
       const shares = price > 0 ? Math.floor(recommendedAmount / price) : 0;
 
-      console.log(
-        `🔧 [${suggestion.ticker}] Preço corrigido: R$ ${price.toFixed(
-          2
-        )} (BRAPI: ${fullFIIData?.price}, IA: ${suggestion.price})`
-      );
-
       return {
         ...suggestion,
-        price: price, // ✅ Agora usa preço real da BRAPI
+        price: price,
         percentage: percentage,
         recommendedAmount: recommendedAmount,
         shares: shares,
         // Garantir que todos os campos necessários existem
         dividendYield:
-          fullFIIData?.dividendYield || suggestion.dividendYield || 0,
-        pvp: fullFIIData?.pvp || suggestion.pvp || 0,
-        sector: fullFIIData?.sector || suggestion.sector || "N/A",
-        name: fullFIIData?.name || suggestion.name || suggestion.ticker,
+          suggestion.dividendYield || fullFIIData?.dividendYield || 0,
+        pvp: suggestion.pvp || fullFIIData?.pvp || 0,
+        sector: suggestion.sector || fullFIIData?.sector || "N/A",
+        name: suggestion.name || fullFIIData?.name || suggestion.ticker,
       };
     });
 
@@ -375,29 +402,63 @@ const Investment = () => {
             Análise de Investimentos
           </h1>
           <p className="text-muted-foreground">
-            Descubra os melhores FIIs para seu perfil com IA avançada
+            Descubra os melhores FIIs para seu perfil com análise
+            fundamentalista por IA
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Target className="h-5 w-5 text-primary" />
+          <span className="text-sm font-medium">IA Suprema Ativa</span>
         </div>
       </div>
 
+      {/* Status da IA */}
+      {!isConfigured && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Configuração Necessária</AlertTitle>
+          <AlertDescription>
+            <div className="flex items-center justify-between">
+              <span>
+                Configure sua API key da OpenAI para usar análises com IA.
+              </span>
+              <Button variant="outline" size="sm" asChild>
+                <a href="/settings">Configurar</a>
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Erro */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Erro na Análise</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="analysis">Nova Análise</TabsTrigger>
-          <TabsTrigger value="results">Resultados</TabsTrigger>
+          <TabsTrigger value="results" disabled={!suggestions}>
+            Resultados
+          </TabsTrigger>
         </TabsList>
 
         {/* Nova Análise */}
-        <TabsContent value="analysis" className="space-y-6">
+        <TabsContent value="analysis" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
+                <BarChart3 className="h-5 w-5" />
                 Configurar Análise
               </CardTitle>
               <CardDescription>
-                Configure seus parâmetros para receber sugestões personalizadas
-                de investimento em FIIs
+                Configure seus parâmetros para receber recomendações
+                personalizadas
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -410,18 +471,76 @@ const Investment = () => {
             </CardContent>
           </Card>
 
-          {/* Erro */}
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Erro na Análise</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          {/* Informações sobre a IA */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Info className="h-5 w-5" />
+                Como Funciona a Análise
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-semibold text-primary">
+                      1
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Coleta de Dados</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Analisamos 300+ FIIs da B3 com dados em tempo real
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-semibold text-primary">
+                      2
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Seleção Inteligente</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Algoritmo seleciona os 100 melhores por qualidade
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-semibold text-primary">
+                      3
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Análise com IA</h4>
+                    <p className="text-sm text-muted-foreground">
+                      IA combina estratégias de Warren Buffett, Ray Dalio e
+                      Peter Lynch
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-semibold text-primary">
+                      4
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Recomendações</h4>
+                    <p className="text-sm text-muted-foreground">
+                      4 FIIs personalizados para seu perfil e objetivos
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Resultados */}
-        <TabsContent value="results" className="space-y-6">
+        <TabsContent value="results" className="space-y-4">
           {suggestions ? (
             <>
               {/* Resumo da Análise */}
@@ -431,15 +550,11 @@ const Investment = () => {
                     <PieChart className="h-5 w-5" />
                     Resumo da Análise
                   </CardTitle>
-                  <CardDescription>
-                    Análise realizada em{" "}
-                    {new Date(suggestions.timestamp).toLocaleString("pt-BR")}
-                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid gap-4 md:grid-cols-4">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">
+                      <div className="text-2xl font-bold">
                         {suggestions.suggestions?.length || 0}
                       </div>
                       <div className="text-sm text-muted-foreground">
@@ -447,15 +562,7 @@ const Investment = () => {
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">
-                        {formatCurrency(suggestions.formData?.amount || 0)}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Valor Total
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">
+                      <div className="text-2xl font-bold">
                         {suggestions.totalFIIsAnalyzed || 0}
                       </div>
                       <div className="text-sm text-muted-foreground">
@@ -463,11 +570,21 @@ const Investment = () => {
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">
-                        {suggestions.formData?.riskProfile || "N/A"}
+                      <div className="text-2xl font-bold">
+                        {suggestions.summary?.averageYield
+                          ? formatPercentage(suggestions.summary.averageYield)
+                          : "N/A"}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Perfil de Risco
+                        DY Médio
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold">
+                        {suggestions.summary?.riskLevel || "N/A"}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Nível de Risco
                       </div>
                     </div>
                   </div>
@@ -478,23 +595,58 @@ const Investment = () => {
               <SuggestionsList
                 suggestions={suggestions.suggestions || []}
                 onAddToPortfolio={handleAddToPortfolio}
+                isLoading={isLoading}
               />
 
-              {/* Estratégia de Portfólio */}
-              {suggestions.portfolioStrategy && (
+              {/* Análise de Mercado */}
+              {suggestions.marketAnalysis && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <TrendingUp className="h-5 w-5" />
-                      Estratégia de Portfólio
+                      Análise de Mercado
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       <div>
-                        <h4 className="font-medium mb-2">Alocação</h4>
+                        <h4 className="font-medium mb-2">Cenário Atual</h4>
                         <p className="text-sm text-muted-foreground">
-                          {suggestions.portfolioStrategy.allocation}
+                          {suggestions.marketAnalysis.currentScenario}
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="font-medium mb-2">Oportunidades</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {suggestions.marketAnalysis.opportunities}
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="font-medium mb-2">Riscos</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {suggestions.marketAnalysis.risks}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Estratégia de Portfolio */}
+              {suggestions.portfolioStrategy && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5" />
+                      Estratégia de Portfolio
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="font-medium mb-2">Abordagem Geral</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {suggestions.portfolioStrategy.overallApproach}
                         </p>
                       </div>
                       <div>

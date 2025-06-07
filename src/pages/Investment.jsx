@@ -1,3 +1,5 @@
+// 🔧 VERSÃO CORRIGIDA DO INVESTMENT.JSX COM DEBUG DETALHADO
+
 import React, { useState } from "react";
 import {
   TrendingUp,
@@ -42,6 +44,37 @@ const Investment = () => {
   const { generateInvestmentSuggestions, isConfigured } = useAI();
   const { addInvestment } = usePortfolio();
 
+  // 🔍 FUNÇÃO DE DEBUG DETALHADO
+  const debugFIIData = (fiis, step) => {
+    console.log(`\n🔍 DEBUG ${step}:`);
+    console.log(`Total de FIIs: ${fiis.length}`);
+
+    if (fiis.length > 0) {
+      const sample = fiis[0];
+      console.log("Estrutura do primeiro FII:", {
+        ticker: sample.ticker,
+        price: sample.price,
+        dividendYield: sample.dividendYield,
+        pvp: sample.pvp,
+        sector: sample.sector,
+        marketCap: sample.marketCap,
+        allKeys: Object.keys(sample),
+      });
+
+      // Estatísticas rápidas
+      const withPrice = fiis.filter((f) => f.price && f.price > 0).length;
+      const withDY = fiis.filter(
+        (f) => f.dividendYield && f.dividendYield > 0
+      ).length;
+      const withPVP = fiis.filter((f) => f.pvp && f.pvp > 0).length;
+      const withSector = fiis.filter((f) => f.sector).length;
+
+      console.log(
+        `Estatísticas: price=${withPrice}, DY=${withDY}, PVP=${withPVP}, sector=${withSector}`
+      );
+    }
+  };
+
   // 🎯 Função principal para obter sugestões com IA REAL
   const handleSubmitInvestment = async (formData) => {
     setIsLoading(true);
@@ -56,6 +89,7 @@ const Investment = () => {
 
       const allFIIs = await getAllFIIs();
       console.log(`📊 ${allFIIs.length} FIIs carregados para análise`);
+      debugFIIData(allFIIs, "DADOS ORIGINAIS");
 
       if (allFIIs.length < 10) {
         throw new Error(
@@ -63,25 +97,33 @@ const Investment = () => {
         );
       }
 
-      // 2. Filtrar FIIs elegíveis baseado no perfil (CORRIGIDO)
+      // 2. Filtrar FIIs elegíveis baseado no perfil (COM DEBUG)
       setLoadingProgress(40);
       setLoadingMessage("Aplicando filtros de qualidade e perfil de risco...");
 
-      const eligibleFIIs = filterFIIsByProfile(allFIIs, formData);
+      const eligibleFIIs = filterFIIsByProfileWithDebug(allFIIs, formData);
       console.log(`🎯 ${eligibleFIIs.length} FIIs elegíveis após filtros`);
+      debugFIIData(eligibleFIIs, "APÓS FILTROS PRINCIPAIS");
 
       // 🔧 CORREÇÃO: Se poucos FIIs elegíveis, relaxar filtros
       let finalEligibleFIIs = eligibleFIIs;
       if (eligibleFIIs.length < 10) {
         console.log("⚠️ Poucos FIIs elegíveis, relaxando filtros...");
-        finalEligibleFIIs = relaxFilters(allFIIs, formData);
+        finalEligibleFIIs = relaxFiltersWithDebug(allFIIs, formData);
         console.log(`🎯 ${finalEligibleFIIs.length} FIIs após relaxar filtros`);
+        debugFIIData(finalEligibleFIIs, "APÓS RELAXAR FILTROS");
       }
 
       if (finalEligibleFIIs.length === 0) {
-        throw new Error(
-          "Nenhum FII encontrado com os critérios especificados. Tente ajustar seu perfil de risco."
-        );
+        // 🚨 DEBUG CRÍTICO: Por que ZERO FIIs?
+        console.log("🚨 ZERO FIIs ELEGÍVEIS - INVESTIGANDO...");
+
+        // Testar cada filtro individualmente
+        const testResults = testFiltersIndividually(allFIIs, formData);
+        console.log("Resultados dos testes individuais:", testResults);
+
+        throw new Error(`Nenhum FII encontrado com os critérios especificados. 
+        Debug: ${JSON.stringify(testResults, null, 2)}`);
       }
 
       // 3. Usar IA REAL da OpenAI
@@ -152,97 +194,275 @@ const Investment = () => {
     }
   };
 
-  // 🔧 FILTROS CORRIGIDOS - Menos restritivos
-  const filterFIIsByProfile = (allFIIs, formData) => {
-    return allFIIs
-      .filter((fii) => {
-        // Filtros básicos de qualidade (mais flexíveis)
-        if (!fii.price || fii.price <= 0) return false;
-        if (!fii.dividendYield || fii.dividendYield < 3) return false; // Reduzido de 4% para 3%
-        if (fii.pvp && fii.pvp > 2.5) return false; // Aumentado de 2.0 para 2.5
+  // 🔍 FUNÇÃO PARA TESTAR FILTROS INDIVIDUALMENTE
+  const testFiltersIndividually = (allFIIs, formData) => {
+    const results = {};
 
-        // Filtros por perfil de risco (CORRIGIDOS)
-        switch (formData.riskProfile) {
-          case "conservador":
-            return (
-              fii.dividendYield >= 5 && // Reduzido de 6% para 5%
-              fii.dividendYield <= 12 && // Aumentado de 10% para 12%
-              fii.pvp <= 1.5 && // Aumentado de 1.2 para 1.5
-              // 🔧 CORREÇÃO: Mais setores permitidos
-              ["Logística", "Corporativo", "Recebíveis", "Híbrido"].includes(
-                fii.sector
-              ) &&
-              (fii.marketCap || 0) >= 100000000 // Reduzido de 500M para 100M
+    // Teste 1: Preço válido
+    const withValidPrice = allFIIs.filter((fii) => fii.price && fii.price > 0);
+    results.validPrice = `${withValidPrice.length}/${allFIIs.length}`;
+
+    // Teste 2: DY mínimo
+    const withMinDY = allFIIs.filter(
+      (fii) => fii.dividendYield && fii.dividendYield >= 3
+    );
+    results.minDY = `${withMinDY.length}/${allFIIs.length}`;
+
+    // Teste 3: P/VP máximo
+    const withMaxPVP = allFIIs.filter((fii) => !fii.pvp || fii.pvp <= 2.5);
+    results.maxPVP = `${withMaxPVP.length}/${allFIIs.length}`;
+
+    // Teste 4: Combinação básica
+    const basicCombo = allFIIs.filter(
+      (fii) =>
+        fii.price &&
+        fii.price > 0 &&
+        fii.dividendYield &&
+        fii.dividendYield >= 3 &&
+        (!fii.pvp || fii.pvp <= 2.5)
+    );
+    results.basicCombo = `${basicCombo.length}/${allFIIs.length}`;
+
+    // Teste 5: Setores disponíveis
+    const sectors = [
+      ...new Set(allFIIs.map((fii) => fii.sector).filter(Boolean)),
+    ];
+    results.availableSectors = sectors;
+
+    // Teste 6: Market cap ranges
+    const marketCaps = allFIIs.filter(
+      (fii) => fii.marketCap && fii.marketCap > 0
+    );
+    if (marketCaps.length > 0) {
+      const caps = marketCaps.map((fii) => fii.marketCap);
+      results.marketCapRange = {
+        min: Math.min(...caps),
+        max: Math.max(...caps),
+        count: marketCaps.length,
+      };
+    }
+
+    return results;
+  };
+
+  // 🔧 FILTROS COM DEBUG DETALHADO
+  const filterFIIsByProfileWithDebug = (allFIIs, formData) => {
+    console.log(`\n🔍 INICIANDO FILTROS PARA PERFIL: ${formData.riskProfile}`);
+
+    let step = 1;
+    let currentFIIs = [...allFIIs];
+
+    // Filtro 1: Preço válido
+    currentFIIs = currentFIIs.filter((fii) => {
+      const valid = fii.price && fii.price > 0;
+      if (!valid)
+        console.log(
+          `❌ Filtro ${step} - ${fii.ticker}: preço inválido (${fii.price})`
+        );
+      return valid;
+    });
+    console.log(
+      `✅ Filtro ${step++} (preço válido): ${currentFIIs.length} restantes`
+    );
+
+    // Filtro 2: DY mínimo
+    currentFIIs = currentFIIs.filter((fii) => {
+      const valid = fii.dividendYield && fii.dividendYield >= 3;
+      if (!valid)
+        console.log(
+          `❌ Filtro ${step} - ${fii.ticker}: DY baixo (${fii.dividendYield}%)`
+        );
+      return valid;
+    });
+    console.log(
+      `✅ Filtro ${step++} (DY >= 3%): ${currentFIIs.length} restantes`
+    );
+
+    // Filtro 3: P/VP máximo
+    currentFIIs = currentFIIs.filter((fii) => {
+      const valid = !fii.pvp || fii.pvp <= 2.5;
+      if (!valid)
+        console.log(
+          `❌ Filtro ${step} - ${fii.ticker}: P/VP alto (${fii.pvp})`
+        );
+      return valid;
+    });
+    console.log(
+      `✅ Filtro ${step++} (P/VP <= 2.5): ${currentFIIs.length} restantes`
+    );
+
+    // Filtros por perfil de risco
+    currentFIIs = currentFIIs.filter((fii) => {
+      switch (formData.riskProfile) {
+        case "conservador":
+          const conservadorOK =
+            fii.dividendYield >= 5 &&
+            fii.dividendYield <= 12 &&
+            (!fii.pvp || fii.pvp <= 1.5) &&
+            ["Logística", "Corporativo", "Recebíveis", "Híbrido"].includes(
+              fii.sector
+            ) &&
+            (fii.marketCap || 0) >= 100000000;
+          if (!conservadorOK) {
+            console.log(
+              `❌ Perfil conservador - ${fii.ticker}: DY=${fii.dividendYield}%, P/VP=${fii.pvp}, setor=${fii.sector}, cap=${fii.marketCap}`
             );
+          }
+          return conservadorOK;
 
-          case "moderado":
-            return (
-              fii.dividendYield >= 4 && // Reduzido de 5% para 4%
-              fii.dividendYield <= 15 && // Aumentado de 12% para 15%
-              fii.pvp <= 2.0 && // Aumentado de 1.5 para 2.0
-              // 🔧 CORREÇÃO: Apenas exclui setores muito voláteis
-              !["Hoteleiro"].includes(fii.sector) &&
-              (fii.marketCap || 0) >= 50000000 // Reduzido de 200M para 50M
+        case "moderado":
+          const moderadoOK =
+            fii.dividendYield >= 4 &&
+            fii.dividendYield <= 15 &&
+            (!fii.pvp || fii.pvp <= 2.0) &&
+            !["Hoteleiro"].includes(fii.sector) &&
+            (fii.marketCap || 0) >= 50000000;
+          if (!moderadoOK) {
+            console.log(
+              `❌ Perfil moderado - ${fii.ticker}: DY=${fii.dividendYield}%, P/VP=${fii.pvp}, setor=${fii.sector}, cap=${fii.marketCap}`
             );
+          }
+          return moderadoOK;
 
-          case "arrojado":
-            return (
-              fii.dividendYield >= 3 && // Reduzido de 4% para 3%
-              fii.pvp <= 2.5 && // Aumentado de 2.0 para 2.5
-              (fii.marketCap || 0) >= 20000000 // Reduzido de 100M para 20M
+        case "arrojado":
+          const arrojadoOK =
+            fii.dividendYield >= 3 &&
+            (!fii.pvp || fii.pvp <= 2.5) &&
+            (fii.marketCap || 0) >= 20000000;
+          if (!arrojadoOK) {
+            console.log(
+              `❌ Perfil arrojado - ${fii.ticker}: DY=${fii.dividendYield}%, P/VP=${fii.pvp}, cap=${fii.marketCap}`
             );
+          }
+          return arrojadoOK;
 
-          default:
-            return true;
-        }
-      })
+        default:
+          return true;
+      }
+    });
+    console.log(
+      `✅ Filtro ${step++} (perfil ${formData.riskProfile}): ${
+        currentFIIs.length
+      } restantes`
+    );
+
+    // Ordenar e limitar
+    const sorted = currentFIIs
       .sort((a, b) => {
-        // Ordenar por qualidade (combinação de DY, P/VP e market cap)
         const scoreA =
           (a.dividendYield / (a.pvp || 1)) * Math.log(a.marketCap || 1000000);
         const scoreB =
           (b.dividendYield / (b.pvp || 1)) * Math.log(b.marketCap || 1000000);
         return scoreB - scoreA;
       })
-      .slice(0, 80); // Aumentado de 50 para 80 FIIs
+      .slice(0, 80);
+
+    console.log(`✅ Final (top 80): ${sorted.length} FIIs selecionados`);
+
+    if (sorted.length > 0) {
+      console.log("Top 5 selecionados:");
+      sorted.slice(0, 5).forEach((fii, i) => {
+        console.log(
+          `${i + 1}. ${fii.ticker}: R$ ${fii.price} | DY: ${
+            fii.dividendYield
+          }% | P/VP: ${fii.pvp} | ${fii.sector}`
+        );
+      });
+    }
+
+    return sorted;
   };
 
-  // 🔧 NOVA FUNÇÃO: Relaxar filtros quando poucos FIIs elegíveis
-  const relaxFilters = (allFIIs, formData) => {
-    return allFIIs
-      .filter((fii) => {
-        // Filtros mínimos apenas
-        if (!fii.price || fii.price <= 0) return false;
-        if (!fii.dividendYield || fii.dividendYield < 2) return false; // Muito flexível
-        if (fii.pvp && fii.pvp > 3.0) return false; // Muito flexível
+  // 🔧 FILTROS RELAXADOS COM DEBUG
+  const relaxFiltersWithDebug = (allFIIs, formData) => {
+    console.log(`\n🔍 RELAXANDO FILTROS PARA PERFIL: ${formData.riskProfile}`);
 
-        // Filtros muito relaxados por perfil
-        switch (formData.riskProfile) {
-          case "conservador":
-            return (
-              fii.dividendYield >= 4 &&
-              fii.pvp <= 2.0 &&
-              (fii.marketCap || 0) >= 50000000
+    let step = 1;
+    let currentFIIs = [...allFIIs];
+
+    // Filtros mínimos apenas
+    currentFIIs = currentFIIs.filter((fii) => {
+      const valid = fii.price && fii.price > 0;
+      if (!valid)
+        console.log(`❌ Relaxado ${step} - ${fii.ticker}: preço inválido`);
+      return valid;
+    });
+    console.log(
+      `✅ Relaxado ${step++} (preço válido): ${currentFIIs.length} restantes`
+    );
+
+    currentFIIs = currentFIIs.filter((fii) => {
+      const valid = fii.dividendYield && fii.dividendYield >= 2;
+      if (!valid)
+        console.log(
+          `❌ Relaxado ${step} - ${fii.ticker}: DY muito baixo (${fii.dividendYield}%)`
+        );
+      return valid;
+    });
+    console.log(
+      `✅ Relaxado ${step++} (DY >= 2%): ${currentFIIs.length} restantes`
+    );
+
+    currentFIIs = currentFIIs.filter((fii) => {
+      const valid = !fii.pvp || fii.pvp <= 3.0;
+      if (!valid)
+        console.log(
+          `❌ Relaxado ${step} - ${fii.ticker}: P/VP muito alto (${fii.pvp})`
+        );
+      return valid;
+    });
+    console.log(
+      `✅ Relaxado ${step++} (P/VP <= 3.0): ${currentFIIs.length} restantes`
+    );
+
+    // Filtros muito relaxados por perfil
+    currentFIIs = currentFIIs.filter((fii) => {
+      switch (formData.riskProfile) {
+        case "conservador":
+          const conservadorOK =
+            fii.dividendYield >= 4 &&
+            (!fii.pvp || fii.pvp <= 2.0) &&
+            (fii.marketCap || 0) >= 50000000;
+          if (!conservadorOK) {
+            console.log(
+              `❌ Relaxado conservador - ${fii.ticker}: falhou critérios relaxados`
             );
+          }
+          return conservadorOK;
 
-          case "moderado":
-            return (
-              fii.dividendYield >= 3 &&
-              fii.pvp <= 2.5 &&
-              (fii.marketCap || 0) >= 20000000
+        case "moderado":
+          const moderadoOK =
+            fii.dividendYield >= 3 &&
+            (!fii.pvp || fii.pvp <= 2.5) &&
+            (fii.marketCap || 0) >= 20000000;
+          if (!moderadoOK) {
+            console.log(
+              `❌ Relaxado moderado - ${fii.ticker}: falhou critérios relaxados`
             );
+          }
+          return moderadoOK;
 
-          case "arrojado":
-            return (
-              fii.dividendYield >= 2 &&
-              fii.pvp <= 3.0 &&
-              (fii.marketCap || 0) >= 10000000
+        case "arrojado":
+          const arrojadoOK =
+            fii.dividendYield >= 2 &&
+            (!fii.pvp || fii.pvp <= 3.0) &&
+            (fii.marketCap || 0) >= 10000000;
+          if (!arrojadoOK) {
+            console.log(
+              `❌ Relaxado arrojado - ${fii.ticker}: falhou critérios relaxados`
             );
+          }
+          return arrojadoOK;
 
-          default:
-            return true;
-        }
-      })
+        default:
+          return true;
+      }
+    });
+    console.log(
+      `✅ Relaxado ${step++} (perfil relaxado): ${currentFIIs.length} restantes`
+    );
+
+    const sorted = currentFIIs
       .sort((a, b) => {
         const scoreA =
           (a.dividendYield / (a.pvp || 1)) * Math.log(a.marketCap || 1000000);
@@ -251,6 +471,10 @@ const Investment = () => {
         return scoreB - scoreA;
       })
       .slice(0, 50);
+
+    console.log(`✅ Final relaxado: ${sorted.length} FIIs selecionados`);
+
+    return sorted;
   };
 
   // 🎯 Validar e otimizar carteira retornada pela IA
@@ -271,7 +495,7 @@ const Investment = () => {
       throw new Error("Nenhuma recomendação válida da IA");
     }
 
-    // 🔧 CORREÇÃO: Diversificação mais flexível
+    // Diversificação mais flexível
     if (validRecommendations.length < 2 && totalAmount >= 2000) {
       throw new Error(
         "IA retornou carteira pouco diversificada. Tente novamente."
@@ -283,7 +507,6 @@ const Investment = () => {
       ...validRecommendations.map((r) => r.percentage || 0)
     );
     if (maxAllocation > 40) {
-      // Aumentado de 25% para 40%
       console.warn(
         "⚠️ IA sugeriu concentração alta, mas aceitável para o valor investido"
       );
@@ -379,7 +602,9 @@ const Investment = () => {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Erro na Análise</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="whitespace-pre-wrap">
+            {error}
+          </AlertDescription>
         </Alert>
       )}
 

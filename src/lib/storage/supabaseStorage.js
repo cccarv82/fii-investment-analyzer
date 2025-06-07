@@ -1,6 +1,6 @@
 import { supabase } from "../supabase";
 
-// 🗄️ SISTEMA DE PERSISTÊNCIA COM SUPABASE
+// 🗄️ SISTEMA DE PERSISTÊNCIA COM SUPABASE CORRIGIDO
 class SupabaseStorage {
   constructor() {
     this.userId = null;
@@ -90,7 +90,6 @@ class SupabaseStorage {
         .single();
 
       if (error) throw error;
-
       return data;
     } catch (error) {
       console.error("Erro ao atualizar carteira:", error);
@@ -108,7 +107,6 @@ class SupabaseStorage {
         .eq("user_id", this.userId);
 
       if (error) throw error;
-
       return true;
     } catch (error) {
       console.error("Erro ao deletar carteira:", error);
@@ -118,9 +116,37 @@ class SupabaseStorage {
 
   // 💰 OPERAÇÕES DE INVESTIMENTO
 
-  // ✅ CORREÇÃO: Adicionar investimento com campo correto
+  // ✅ CORREÇÃO: Adicionar investimento com validações
   async addInvestment(portfolioId, investmentData) {
     try {
+      console.log("📝 Dados recebidos para inserção:", investmentData);
+
+      // Validações
+      const shares = investmentData.shares || 0;
+      const averagePrice =
+        investmentData.average_price || investmentData.price || 0;
+      const currentPrice = investmentData.current_price || averagePrice;
+
+      if (shares <= 0) {
+        throw new Error("Quantidade de cotas deve ser maior que 0");
+      }
+
+      if (averagePrice <= 0) {
+        throw new Error("Preço médio deve ser maior que 0");
+      }
+
+      const totalInvested = shares * averagePrice;
+      const currentValue = shares * currentPrice;
+
+      console.log("📊 Dados validados para inserção:", {
+        ticker: investmentData.ticker,
+        shares,
+        averagePrice,
+        currentPrice,
+        totalInvested,
+        currentValue,
+      });
+
       const { data, error } = await supabase
         .from("investments")
         .insert([
@@ -129,19 +155,12 @@ class SupabaseStorage {
             ticker: investmentData.ticker,
             name: investmentData.name || investmentData.ticker,
             sector: investmentData.sector || "Outros",
-            shares: investmentData.shares || 0,
-            average_price:
-              investmentData.average_price || investmentData.price || 0,
-            total_invested:
-              (investmentData.shares || 0) *
-              (investmentData.average_price || investmentData.price || 0),
-            current_price:
-              investmentData.current_price || investmentData.price || 0,
-            current_value:
-              (investmentData.shares || 0) *
-              (investmentData.current_price || investmentData.price || 0),
+            shares: shares,
+            average_price: averagePrice,
+            total_invested: totalInvested,
+            current_price: currentPrice,
+            current_value: currentValue,
             dividend_yield: investmentData.dividend_yield || 0,
-            // ✅ CORREÇÃO CRÍTICA: Usar 'pvp' em vez de 'pvp_ratio'
             pvp: investmentData.pvp || investmentData.pvp_ratio || 0,
             is_active: true,
             created_at: new Date().toISOString(),
@@ -152,6 +171,7 @@ class SupabaseStorage {
 
       if (error) throw error;
 
+      console.log("✅ Investimento inserido com sucesso:", data);
       return data;
     } catch (error) {
       console.error("Erro ao adicionar investimento:", error);
@@ -159,9 +179,28 @@ class SupabaseStorage {
     }
   }
 
-  // Atualizar investimento
+  // ✅ CORREÇÃO: Atualizar investimento com validação de usuário
   async updateInvestment(investmentId, updates) {
     try {
+      console.log("📝 Atualizando investimento:", investmentId, updates);
+
+      // Validações
+      if (updates.shares && updates.shares <= 0) {
+        throw new Error("Quantidade de cotas deve ser maior que 0");
+      }
+
+      if (updates.average_price && updates.average_price <= 0) {
+        throw new Error("Preço médio deve ser maior que 0");
+      }
+
+      // Recalcular valores se necessário
+      if (updates.shares && updates.average_price) {
+        updates.total_invested = updates.shares * updates.average_price;
+        updates.current_value =
+          updates.shares * (updates.current_price || updates.average_price);
+      }
+
+      // ✅ CORREÇÃO CRÍTICA: Adicionar verificação de usuário via portfolio
       const { data, error } = await supabase
         .from("investments")
         .update({
@@ -169,11 +208,13 @@ class SupabaseStorage {
           updated_at: new Date().toISOString(),
         })
         .eq("id", investmentId)
+        .eq("portfolio_id", await this.getPortfolioIdByInvestment(investmentId))
         .select()
         .single();
 
       if (error) throw error;
 
+      console.log("✅ Investimento atualizado com sucesso:", data);
       return data;
     } catch (error) {
       console.error("Erro ao atualizar investimento:", error);
@@ -181,20 +222,64 @@ class SupabaseStorage {
     }
   }
 
-  // Remover investimento
+  // ✅ CORREÇÃO: Remover investimento com validação de usuário
   async removeInvestment(investmentId) {
     try {
+      console.log("🗑️ Removendo investimento:", investmentId);
+
+      // ✅ CORREÇÃO CRÍTICA: Verificar se o investimento pertence ao usuário
+      const portfolioId = await this.getPortfolioIdByInvestment(investmentId);
+      if (!portfolioId) {
+        throw new Error(
+          "Investimento não encontrado ou não pertence ao usuário"
+        );
+      }
+
       const { error } = await supabase
         .from("investments")
         .delete()
-        .eq("id", investmentId);
+        .eq("id", investmentId)
+        .eq("portfolio_id", portfolioId);
 
       if (error) throw error;
 
+      console.log("✅ Investimento removido com sucesso");
       return true;
     } catch (error) {
       console.error("Erro ao remover investimento:", error);
       throw error;
+    }
+  }
+
+  // 🔍 FUNÇÃO AUXILIAR: Obter portfolio_id de um investimento
+  async getPortfolioIdByInvestment(investmentId) {
+    try {
+      const { data, error } = await supabase
+        .from("investments")
+        .select(
+          `
+          portfolio_id,
+          portfolios!inner (
+            user_id
+          )
+        `
+        )
+        .eq("id", investmentId)
+        .eq("portfolios.user_id", this.userId)
+        .single();
+
+      if (error || !data) {
+        console.warn(
+          "Investimento não encontrado ou não pertence ao usuário:",
+          investmentId
+        );
+        return null;
+      }
+
+      return data.portfolio_id;
+    } catch (error) {
+      console.error("Erro ao verificar propriedade do investimento:", error);
+      return null;
     }
   }
 
@@ -220,7 +305,6 @@ class SupabaseStorage {
         .single();
 
       if (error) throw error;
-
       return data;
     } catch (error) {
       console.error("Erro ao adicionar dividendo:", error);
@@ -238,7 +322,6 @@ class SupabaseStorage {
         .order("payment_date", { ascending: false });
 
       if (error) throw error;
-
       return data || [];
     } catch (error) {
       console.error("Erro ao obter dividendos:", error);
@@ -267,7 +350,6 @@ class SupabaseStorage {
         .order("payment_date", { ascending: false });
 
       if (error) throw error;
-
       return data || [];
     } catch (error) {
       console.error("Erro ao obter todos os dividendos:", error);
@@ -292,21 +374,17 @@ class SupabaseStorage {
     }
 
     const activeInvestments = investments.filter((inv) => inv.is_active);
-
     const totalInvested = activeInvestments.reduce(
       (sum, inv) => sum + (inv.total_invested || 0),
       0
     );
-
     const currentValue = activeInvestments.reduce(
       (sum, inv) => sum + (inv.current_value || inv.total_invested || 0),
       0
     );
-
     const totalReturn = currentValue - totalInvested;
     const returnPercentage =
       totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
-
     const averageDY =
       activeInvestments.length > 0
         ? activeInvestments.reduce(
@@ -314,7 +392,6 @@ class SupabaseStorage {
             0
           ) / activeInvestments.length
         : 0;
-
     const monthlyIncome = (currentValue * averageDY) / 100 / 12;
 
     return {

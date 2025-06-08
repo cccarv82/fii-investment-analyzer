@@ -595,3 +595,6 @@ export const usePortfolio = () => {
   }
   return context;
 };
+
+// ✅ EXPORTAR O CONTEXTO PARA USO DIRETO
+export { PortfolioContext };

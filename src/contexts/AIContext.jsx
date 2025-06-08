@@ -4,8 +4,11 @@ import { supabase } from "../lib/supabase";
 import Anthropic from '@anthropic-ai/sdk';
 import fiiDataAPI from '../lib/api/fiiDataAPI.js';
 
-// 🎯 Contexto da IA com integração exclusiva ao Claude
+// 🎯 Contexto da IA integrado com Claude API + Supabase
 const AIContext = createContext();
+
+// ✅ EXPORTAR O CONTEXTO PARA USO DIRETO
+export { AIContext };
 
 // 🤖 Classe para gerenciar IA do Claude (Anthropic)
 class ClaudeManager {

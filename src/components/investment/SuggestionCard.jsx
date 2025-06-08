@@ -295,7 +295,7 @@ const SuggestionCard = ({
             {/* ✅ MELHORADO: Renda Mensal de Dividendos */}
             {dividendYield > 0 && calculateValue() > 0 && (
               <div className="flex justify-between">
-                <span className="text-sm text-muted-foreground">💰 Dividendos/Mês</span>
+                <span className="text-sm text-muted-foreground">💰 Dividendos/Mês (posição atual)</span>
                 <span className="font-semibold text-green-600">
                   {formatCurrency((calculateValue() * dividendYield / 100) / 12)}
                 </span>
@@ -428,10 +428,10 @@ const SuggestionCard = ({
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                        🪄 Magic Number
+                        🪄 Magic Number (META)
                       </span>
                       <span className="text-xs text-blue-600 dark:text-blue-400">
-                        (cotas para comprar 1 nova TODO MÊS com dividendos)
+                        (cotas necessárias para autocompra mensal)
                       </span>
                     </div>
                     <span className="font-bold text-blue-700 dark:text-blue-300">
@@ -439,10 +439,10 @@ const SuggestionCard = ({
                     </span>
                   </div>
                   <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    💡 Com {magicNumber} cotas, você recebe ~{formatCurrency(dividendosMensaisTotais)} mensais = 1 nova cota/mês
+                    🎯 META: Com {magicNumber} cotas, você recebe ~{formatCurrency(dividendosMensaisTotais)} mensais = 1 nova cota/mês
                   </div>
                   <div className="text-xs text-blue-500 dark:text-blue-400 mt-1 font-medium">
-                    📊 {formatCurrency(dividendoMensalPorCota)}/cota/mês × {magicNumber} cotas = {formatCurrency(dividendosMensaisTotais)}/mês
+                    📊 {formatCurrency(dividendoMensalPorCota)}/cota/mês × {magicNumber} cotas = {formatCurrency(dividendosMensaisTotais)}/mês (para autocompra)
                   </div>
                 </>
               );

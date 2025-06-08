@@ -253,7 +253,7 @@ const SuggestionCard = ({
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">
-                % Dividend Yield
+                💰 Dividend Yield
               </span>
               <span className={`font-semibold ${getYieldColor(dividendYield)}`}>
                 {formatPercentage(dividendYield)}
@@ -265,11 +265,20 @@ const SuggestionCard = ({
                 {pvp?.toFixed(2) || "N/A"}
               </span>
             </div>
+            {/* ✅ NOVO: Potencial de Valorização */}
+            {targetPrice && price > 0 && (
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">📈 Valorização</span>
+                <span className="font-semibold text-green-600">
+                  {formatPercentage(((targetPrice - price) / price) * 100)}
+                </span>
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">
-                Alocação Recomendada
+                🎯 Alocação
               </span>
               <span className="font-semibold">
                 {formatPercentage(calculatePercentage())}
@@ -277,127 +286,167 @@ const SuggestionCard = ({
             </div>
             <div className="flex justify-between">
               <span className="text-sm text-muted-foreground">
-                Preço-alvo 12m:
+                💵 Valor Total
               </span>
-              <span className="font-semibold text-green-600">
-                {targetPrice ? formatCurrency(targetPrice) : "N/A"}
+              <span className="font-semibold">
+                {formatCurrency(calculateValue())}
               </span>
             </div>
+            {/* ✅ MELHORADO: Renda Mensal de Dividendos */}
+            {dividendYield > 0 && calculateValue() > 0 && (
+              <div className="flex justify-between">
+                <span className="text-sm text-muted-foreground">💰 Dividendos/Mês</span>
+                <span className="font-semibold text-green-600">
+                  {formatCurrency((calculateValue() * dividendYield / 100) / 12)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Barra de progresso da alocação */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span>Alocação Recomendada</span>
+            <span>Alocação na Carteira</span>
             <span>{formatPercentage(calculatePercentage())}</span>
           </div>
           <Progress value={calculatePercentage()} className="h-2" />
         </div>
 
-        {/* Investimento detalhado */}
+        {/* ✅ MELHORADO: Investimento detalhado com mais informações */}
         <div className="bg-muted/50 rounded-lg p-4 space-y-2">
           <div className="flex justify-between">
-            <span className="text-sm font-medium">Valor:</span>
+            <span className="text-sm font-medium">💰 Investimento:</span>
             <span className="font-semibold">
               {formatCurrency(calculateValue())}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-sm font-medium">Cotas:</span>
+            <span className="text-sm font-medium">📊 Cotas:</span>
             <span className="font-semibold">{calculateShares()}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-sm font-medium">Preço-alvo 12m:</span>
-            <span className="font-semibold text-green-600">
-              {targetPrice ? formatCurrency(targetPrice) : "N/A"}
-            </span>
+            <span className="text-sm font-medium">💵 Preço/Cota:</span>
+            <span className="font-semibold">{formatCurrency(price)}</span>
           </div>
+          {targetPrice && (
+            <div className="flex justify-between">
+              <span className="text-sm font-medium">🎯 Meta 12m:</span>
+              <span className="font-semibold text-green-600">
+                {formatCurrency(targetPrice)}
+              </span>
+            </div>
+          )}
+          {/* ✅ MELHORADO: Renda anual de dividendos */}
+          {dividendYield > 0 && calculateValue() > 0 && (
+            <div className="flex justify-between border-t pt-2">
+              <span className="text-sm font-medium">💰 Dividendos Anuais:</span>
+              <span className="font-semibold text-green-600">
+                {formatCurrency(calculateValue() * dividendYield / 100)}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Análise Fundamentalista */}
+        {/* ✅ MELHORADO: Análise da IA (unificada) */}
         {reasoning && (
           <div className="space-y-3">
-            <h4 className="font-semibold text-sm">Análise Fundamentalista</h4>
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              🤖 Análise da IA
+              {score && (
+                <Badge variant="outline" className="text-xs">
+                  {score}/10
+                </Badge>
+              )}
+            </h4>
             <p className="text-sm text-muted-foreground leading-relaxed">
               {reasoning}
             </p>
           </div>
         )}
 
-        {/* Pontos Fortes */}
-        {strengths && strengths.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="font-semibold text-sm text-green-600">
-              Pontos Fortes
-            </h4>
-            <ul className="space-y-1">
-              {strengths.map((strength, index) => (
-                <li
-                  key={index}
-                  className="text-sm text-muted-foreground flex items-center gap-2"
-                >
-                  <span className="text-green-500 flex-shrink-0">✓</span>
-                  <span>{strength}</span>
-                </li>
-              ))}
-            </ul>
+        {/* ✅ MELHORADO: Pontos Fortes e Riscos lado a lado */}
+        {((strengths && strengths.length > 0) || (risks && risks.length > 0)) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Pontos Fortes */}
+            {strengths && strengths.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm text-green-600 flex items-center gap-1">
+                  ✅ Pontos Fortes
+                </h4>
+                <ul className="space-y-1">
+                  {strengths.slice(0, 3).map((strength, index) => (
+                    <li
+                      key={index}
+                      className="text-sm text-muted-foreground flex items-start gap-2"
+                    >
+                      <span className="text-green-500 flex-shrink-0 mt-0.5">•</span>
+                      <span>{strength}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Riscos */}
+            {risks && risks.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-semibold text-sm text-red-600 flex items-center gap-1">
+                  ⚠️ Principais Riscos
+                </h4>
+                <ul className="space-y-1">
+                  {risks.slice(0, 3).map((risk, index) => (
+                    <li
+                      key={index}
+                      className="text-sm text-muted-foreground flex items-start gap-2"
+                    >
+                      <span className="text-red-500 flex-shrink-0 mt-0.5">•</span>
+                      <span>{risk}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Pontos de Atenção */}
-        {weaknesses && weaknesses.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="font-semibold text-sm text-orange-600">
-              Pontos de Atenção
-            </h4>
-            <ul className="space-y-1">
-              {weaknesses.map((weakness, index) => (
-                <li
-                  key={index}
-                  className="text-sm text-muted-foreground flex items-center gap-2"
-                >
-                  <span className="text-orange-500 flex-shrink-0">⚠</span>
-                  <span>{weakness}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Riscos */}
-        {risks && risks.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="font-semibold text-sm text-red-600">Riscos</h4>
-            <ul className="space-y-1">
-              {risks.map((risk, index) => (
-                <li
-                  key={index}
-                  className="text-sm text-muted-foreground flex items-center gap-2"
-                >
-                  <span className="text-red-500 flex-shrink-0">⚠</span>
-                  <span>{risk}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Análise Macro */}
-        {macroAnalysis && (
-          <div className="space-y-2">
-            <h4 className="font-semibold text-sm">Análise Macroeconômica</h4>
-            <p className="text-sm text-muted-foreground">{macroAnalysis}</p>
-          </div>
-        )}
-
-        {/* Análise Fundamentalista Detalhada */}
-        {fundamentalAnalysis && (
-          <div className="space-y-2">
-            <h4 className="font-semibold text-sm">Análise Fundamentalista</h4>
-            <p className="text-sm text-muted-foreground">
-              {fundamentalAnalysis}
-            </p>
+        {/* ✅ NOVO: Magic Number */}
+        {dividendYield > 0 && price > 0 && (
+          <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+            {(() => {
+              // ✅ CORREÇÃO: Calcular dividendo mensal por cota corretamente
+              const dividendoMensalPorCota = (price * dividendYield / 100) / 12;
+              
+              // ✅ CORREÇÃO: Magic Number = preço da cota ÷ dividendo mensal por cota
+              const magicNumber = Math.ceil(price / dividendoMensalPorCota);
+              
+              // ✅ CORREÇÃO: Dividendos mensais totais = magic number × dividendo por cota
+              const dividendosMensaisTotais = magicNumber * dividendoMensalPorCota;
+              
+              return (
+                <>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                        🪄 Magic Number
+                      </span>
+                      <span className="text-xs text-blue-600 dark:text-blue-400">
+                        (cotas para comprar 1 nova TODO MÊS com dividendos)
+                      </span>
+                    </div>
+                    <span className="font-bold text-blue-700 dark:text-blue-300">
+                      {magicNumber} cotas
+                    </span>
+                  </div>
+                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    💡 Com {magicNumber} cotas, você recebe ~{formatCurrency(dividendosMensaisTotais)} mensais = 1 nova cota/mês
+                  </div>
+                  <div className="text-xs text-blue-500 dark:text-blue-400 mt-1 font-medium">
+                    📊 {formatCurrency(dividendoMensalPorCota)}/cota/mês × {magicNumber} cotas = {formatCurrency(dividendosMensaisTotais)}/mês
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 

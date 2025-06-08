@@ -1,11 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "../lib/supabase";
 import Anthropic from '@anthropic-ai/sdk';
-import { testBRAPIData } from '../lib/api/test_brapi_data';
-import { debugDY } from '../lib/api/debug_dy_browser';
-import { testBRAPIRangeOptions } from '../lib/api/test_brapi_range';
-import { testHybridMethod } from '../lib/api/test_hybrid_method';
+import fiiDataAPI from '../lib/api/fiiDataAPI.js';
 
 // 🎯 Contexto da IA com integração exclusiva ao Claude
 const AIContext = createContext();
@@ -570,19 +567,33 @@ export const AIProvider = ({ children }) => {
   const [isConfigured, setIsConfigured] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [lastAnalysis, setLastAnalysis] = useState(null); // ✅ NOVO: Estado para última análise completa
+  const [userSettings, setUserSettings] = useState({
+    claude_api_key: "",
+    brapi_token: ""
+  });
 
-  // ✅ Estado para armazenar BRAPI token
-  const [brapiToken, setBrapiToken] = useState(null);
-
-  // 🔧 Carregar configurações do Supabase
+  // 🔄 Carregar configurações do usuário quando logar
   useEffect(() => {
     if (user) {
       loadUserSettings();
+      loadLastAnalysis(); // ✅ NOVO: Carregar última análise
+    } else {
+      // Reset quando deslogar
+      setIsConfigured(false);
+      setUserSettings({ claude_api_key: "", brapi_token: "" });
+      claudeManager.setApiKey(null);
+      clearPersistedData(); // ✅ NOVO: Limpar dados persistidos
     }
   }, [user]);
 
+  // 📥 Carregar configurações do Supabase
   const loadUserSettings = async () => {
     try {
+      console.log('📥 Carregando configurações do usuário...');
+      
       const { data, error } = await supabase
         .from("user_settings")
         .select("claude_api_key, brapi_token")
@@ -593,197 +604,510 @@ export const AIProvider = ({ children }) => {
         throw error;
       }
 
-      // Configurar Claude se disponível
-      if (data?.claude_api_key) {
-        claudeManager.setApiKey(data.claude_api_key);
+      if (data) {
+        console.log('✅ Configurações carregadas:', { 
+          hasClaudeKey: !!data.claude_api_key,
+          hasBrapiToken: !!data.brapi_token 
+        });
+        
+        setUserSettings({
+          claude_api_key: data.claude_api_key || "",
+          brapi_token: data.brapi_token || ""
+        });
+
+        // Configurar Claude se tiver API key
+        if (data.claude_api_key) {
+          claudeManager.setApiKey(data.claude_api_key);
         setIsConfigured(true);
-      }
-
-      // Carregar BRAPI token
-      if (data?.brapi_token) {
-        setBrapiToken(data.brapi_token);
-        console.log("✅ BRAPI token carregado do Supabase:", data.brapi_token);
-      }
-
-    } catch (error) {
-      console.error("Erro ao carregar configurações:", error);
-    }
-  };
-
-  // 🔧 Salvar API key do Claude no Supabase
-  const setApiKey = async (key) => {
-    try {
-      if (!user) {
-        throw new Error("Usuário não autenticado");
-      }
-
-      const { error } = await supabase.from("user_settings").upsert(
-        {
-          user_id: user.id,
-          claude_api_key: key,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "user_id",
+          console.log('🤖 Claude API configurada com sucesso');
+        } else {
+          setIsConfigured(false);
+          console.log('⚠️ Claude API não configurada');
         }
-      );
-
-      if (error) throw error;
-
-      claudeManager.setApiKey(key);
-      setIsConfigured(!!key);
-      
-      console.log("✅ API key do Claude salva no Supabase");
-    } catch (error) {
-      console.error("❌ Erro ao salvar API key do Claude:", error);
-      throw error;
-    }
-  };
-
-  // 🗑️ Remover API key do Claude
-  const removeApiKey = async () => {
-    try {
-      if (!user) {
-        throw new Error("Usuário não autenticado");
+      } else {
+        console.log('📝 Nenhuma configuração encontrada para o usuário');
+        setIsConfigured(false);
       }
-
-      const { error } = await supabase.from("user_settings").upsert(
-        {
-          user_id: user.id,
-          claude_api_key: null,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "user_id",
-        }
-      );
-
-      if (error) throw error;
-
-      claudeManager.setApiKey(null);
+    } catch (error) {
+      console.error("❌ Erro ao carregar configurações:", error);
       setIsConfigured(false);
-      
-      console.log("✅ API key do Claude removida");
-    } catch (error) {
-      console.error("❌ Erro ao remover API key do Claude:", error);
-      throw error;
     }
   };
 
-  // 🎯 Funções principais da IA
-  const generateInvestmentSuggestions = async (
-    eligibleFIIs,
-    userProfile,
-    currentPortfolio = []
-  ) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await claudeManager.generateInvestmentSuggestions(
-        eligibleFIIs,
-        userProfile,
-        currentPortfolio
-      );
-      return result;
-    } catch (error) {
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const analyzeFII = async (fiiData, userProfile) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await claudeManager.analyzeFII(fiiData, userProfile);
-      return result;
-    } catch (error) {
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const analyzePortfolio = async (portfolio, userProfile) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await claudeManager.analyzePortfolio(
-        portfolio,
-        userProfile
-      );
-      return result;
-    } catch (error) {
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateMarketAnalysis = async (userProfile) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await claudeManager.generateMarketAnalysis(userProfile);
-      return result;
-    } catch (error) {
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const clearError = () => {
-    setError(null);
-  };
-
-  // 🔍 Função de teste para debuggar dados BRAPI
-  const testBRAPIDataDebug = async (tickers = ["MXRF11", "CPTS11", "RBRF11"]) => {
-    if (!brapiToken) {
-      console.error("❌ Token BRAPI não configurado!");
-      return;
-    }
-    
-    console.log("🔍 Iniciando teste de dados BRAPI...");
-    await testBRAPIData(brapiToken, tickers);
-  };
-
-  // 🔍 Função de debug específica para DY
-  const debugDYData = async () => {
-    if (!brapiToken) {
-      console.error("❌ Token BRAPI não configurado!");
-      return;
-    }
-    
-    console.log("🔍 Iniciando debug de DY...");
-    return await debugDY(brapiToken);
-  };
-
-  // 🔍 Função de teste para diferentes ranges de dividendos na BRAPI
-  const testBRAPIRange = async () => {
-    console.log("🔍 Iniciando teste de ranges BRAPI...");
-    return await testBRAPIRangeOptions();
-  };
-
-  // 🚀 Função de teste para o método híbrido inteligente
-  const testHybridMethodDebug = async () => {
-    console.log("🚀 Iniciando teste do método híbrido...");
-    return await testHybridMethod();
-  };
-
-  // Obter BRAPI token do estado
-  const getBrapiToken = () => {
-    console.log("🔍 getBrapiToken chamado, token atual:", brapiToken);
-    return brapiToken;
-  };
-
+  // 🔑 Obter API key atual
   const getApiKey = () => {
     return claudeManager.getApiKey();
+  };
+
+  // 🔄 Recarregar configurações (para usar após salvar)
+  const reloadSettings = async () => {
+    if (user) {
+      await loadUserSettings();
+    }
+  };
+
+  // 🚀 GERAR SUGESTÕES COM STATUS INVEST
+  const generateSuggestions = useCallback(async (userProfile) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('🚀 Iniciando geração de sugestões com Status Invest...');
+      
+      // Buscar melhores FIIs usando nova solução
+      const bestFIIs = await fiiDataAPI.getBestFIIsForAI(20);
+      
+      if (!bestFIIs || bestFIIs.length === 0) {
+        throw new Error('Nenhum FII encontrado para análise');
+      }
+      
+      console.log(`✅ Obtidos ${bestFIIs.length} FIIs de alta qualidade para análise`);
+      
+      // Preparar dados para IA
+      const analysisData = {
+        fiis: bestFIIs,
+        userProfile,
+        marketContext: await getMarketContext(),
+        timestamp: new Date().toISOString()
+      };
+      
+      // Gerar análise com Claude
+      const aiAnalysis = await generateAIAnalysis(analysisData);
+      
+      // ✅ CORREÇÃO: Salvar análises no Supabase usando suggestions em vez de recommendations
+      if (aiAnalysis.suggestions && aiAnalysis.suggestions.length > 0) {
+        await saveAIAnalysis({ recommendations: aiAnalysis.suggestions }, userProfile);
+      }
+      
+      // ✅ NOVO: Salvar análise completa no estado e localStorage
+      setLastAnalysis(aiAnalysis);
+      setSuggestions(aiAnalysis.suggestions || []);
+      setLastUpdate(aiAnalysis.timestamp);
+      
+      // ✅ NOVO: Persistir no localStorage
+      saveAnalysisToLocalStorage(aiAnalysis);
+      
+      console.log('✅ Sugestões geradas com sucesso!');
+      
+      // Retornar resultado completo para o Investment.jsx
+      return aiAnalysis;
+      
+    } catch (err) {
+      console.error('❌ Erro ao gerar sugestões:', err);
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 🧠 GERAR ANÁLISE COM IA CLAUDE
+  const generateAIAnalysis = async (data) => {
+    try {
+      console.log('🧠 Gerando análise com Claude...');
+      
+      // ✅ CORREÇÃO: Usar ClaudeManager diretamente em vez de fetch
+      if (!claudeManager.getApiKey()) {
+        throw new Error('Claude API key não configurada. Configure nas Configurações.');
+      }
+
+      // Usar o método generateInvestmentSuggestions do ClaudeManager
+      const result = await claudeManager.generateInvestmentSuggestions(
+        data.fiis,
+        data.userProfile,
+        [] // currentPortfolio vazio
+      );
+      
+      console.log('✅ Análise gerada com sucesso pelo ClaudeManager');
+      
+      return {
+        suggestions: result.suggestions || [],
+        portfolioStrategy: result.portfolioStrategy || {},
+        analysis: result.analysis || '',
+        riskAssessment: result.riskAssessment || '',
+        marketOutlook: result.marketOutlook || '',
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error('❌ Erro na análise IA:', error);
+      throw error;
+    }
+  };
+
+  // 📊 OBTER CONTEXTO DE MERCADO
+  const getMarketContext = async () => {
+    try {
+      const stats = await fiiDataAPI.getSystemStats();
+      
+      return {
+        totalFIIs: stats.total_fiis,
+        lastUpdate: stats.last_update,
+        systemStatus: stats.system_status,
+        dataSource: 'status_invest'
+      };
+      
+    } catch (error) {
+      console.warn('⚠️ Erro ao obter contexto de mercado:', error);
+      return {
+        totalFIIs: 0,
+        lastUpdate: null,
+        systemStatus: 'UNKNOWN',
+        dataSource: 'status_invest'
+      };
+    }
+  };
+
+  // 💾 SALVAR ANÁLISES NO SUPABASE
+  const saveAIAnalysis = async (analysis, userProfile) => {
+    try {
+      const user = await supabase.auth.getUser();
+      if (!user.data.user) return;
+      
+      // ✅ CORREÇÃO: Mapear corretamente os campos das sugestões
+      const analysesToSave = analysis.recommendations.map(rec => ({
+        ticker: rec.ticker,
+        user_id: user.data.user.id,
+        // ✅ CORREÇÃO: Usar campos corretos ou valores padrão
+        recommendation: rec.recommendation || 'COMPRAR', // Valor padrão se não existir
+        score: rec.score || 8.0, // Valor padrão se não existir
+        target_price: rec.targetPrice || rec.price || 0,
+        reasoning: rec.reasoning || 'Análise fundamentalista baseada em dados do Status Invest',
+        strengths: Array.isArray(rec.strengths) ? rec.strengths : (rec.strengths ? [rec.strengths] : ['Dividend Yield atrativo']),
+        weaknesses: Array.isArray(rec.weaknesses) ? rec.weaknesses : (rec.weaknesses ? [rec.weaknesses] : ['Monitorar volatilidade']),
+        risks: Array.isArray(rec.risks) ? rec.risks : (rec.risks ? [rec.risks] : ['Risco de mercado']),
+        catalysts: Array.isArray(rec.catalysts) ? rec.catalysts : (rec.catalysts ? [rec.catalysts] : ['Crescimento do setor']),
+        risk_level: rec.riskLevel || rec.risk_level || 'MÉDIO',
+        suitability: rec.suitability || 8.0,
+        time_horizon: userProfile.timeHorizon || '12 meses',
+        intrinsic_value: rec.intrinsicValue || rec.intrinsic_value || rec.price || 0,
+        upside_potential: rec.upsidePotential || rec.upside_potential || 10.0,
+        safety_margin: rec.safetyMargin || rec.safety_margin || 15.0
+      }));
+      
+      console.log('🔍 Dados que serão salvos no Supabase:', analysesToSave);
+      
+      const { error } = await supabase
+        .from('fii_ai_analysis')
+        .insert(analysesToSave);
+      
+      if (error) {
+        console.error('❌ Erro ao salvar análises:', error);
+        console.error('📊 Dados que causaram erro:', analysesToSave);
+      } else {
+        console.log(`✅ Salvadas ${analysesToSave.length} análises no Supabase`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Erro ao salvar análises:', error);
+    }
+  };
+
+  // 📝 CRIAR PROMPT PARA IA
+  const createAnalysisPrompt = (data) => {
+    return `
+# ANÁLISE FUNDAMENTALISTA DE FIIs - STATUS INVEST DATA
+
+## DADOS DOS FIIs
+${data.fiis.map(fii => `
+### ${fii.ticker} - ${fii.name}
+- **Preço**: R$ ${fii.price?.toFixed(2)}
+- **Dividend Yield**: ${fii.dividend_yield?.toFixed(2)}%
+- **P/VP**: ${fii.pvp?.toFixed(2)}
+- **Liquidez**: R$ ${fii.liquidity?.toLocaleString()}
+- **Setor**: ${fii.sector}
+- **Segmento**: ${fii.segment}
+- **Gestora**: ${fii.manager}
+- **Taxa de Vacância**: ${fii.vacancy_rate?.toFixed(1)}%
+- **Quality Score**: ${fii.quality_score?.toFixed(1)}/10
+- **Sustainability Score**: ${fii.sustainability_score?.toFixed(1)}/10
+- **Growth Score**: ${fii.growth_score?.toFixed(1)}/10
+- **Nível de Risco**: ${fii.risk_level}
+- **Rating Preliminar**: ${fii.preliminary_rating}
+
+**Destaques**: ${fii.investment_highlights?.join(', ') || 'N/A'}
+**Riscos**: ${fii.risk_factors?.join(', ') || 'N/A'}
+**Vantagens**: ${fii.competitive_advantages?.join(', ') || 'N/A'}
+**Sustentabilidade Dividendos**: ${fii.dividend_sustainability}
+**Potencial Crescimento**: ${fii.growth_potential}
+`).join('\n')}
+
+## PERFIL DO INVESTIDOR
+- **Tolerância ao Risco**: ${data.userProfile.riskTolerance}
+- **Horizonte de Tempo**: ${data.userProfile.timeHorizon}
+- **Objetivo**: ${data.userProfile.objective}
+- **Capital Disponível**: R$ ${data.userProfile.availableCapital?.toLocaleString()}
+
+## CONTEXTO DE MERCADO
+- **Total de FIIs Analisados**: ${data.marketContext.totalFIIs}
+- **Fonte de Dados**: Status Invest (dados fundamentalistas reais)
+- **Última Atualização**: ${data.marketContext.lastUpdate}
+
+## INSTRUÇÕES PARA ANÁLISE
+
+Como especialista em FIIs, analise os dados fundamentalistas reais do Status Invest e forneça:
+
+1. **TOP 5 RECOMENDAÇÕES** ranqueadas por adequação ao perfil
+2. **ANÁLISE DETALHADA** de cada recomendação incluindo:
+   - Justificativa baseada nos dados fundamentalistas
+   - Preço-alvo baseado em múltiplos
+   - Potencial de upside
+   - Principais riscos
+   - Catalistas de valorização
+
+3. **ESTRATÉGIA DE CARTEIRA** considerando:
+   - Diversificação setorial
+   - Balanceamento risco/retorno
+   - Timing de entrada
+   - Gestão de posição
+
+4. **ALERTAS E CUIDADOS** específicos do momento atual
+
+Foque em dados concretos do Status Invest e análise fundamentalista sólida.
+`;
+  };
+
+  // 🔄 ATUALIZAR DADOS
+  const refreshData = useCallback(async () => {
+    try {
+      setLoading(true);
+      console.log('🔄 Atualizando dados dos FIIs...');
+      
+      await fiiDataAPI.getFIIData();
+      
+      console.log('✅ Dados atualizados com sucesso');
+      
+    } catch (error) {
+      console.error('❌ Erro ao atualizar dados:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 📊 OBTER ESTATÍSTICAS DO SISTEMA
+  const getSystemStats = useCallback(async () => {
+    try {
+      return await fiiDataAPI.getSystemStats();
+    } catch (error) {
+      console.error('❌ Erro ao obter estatísticas:', error);
+      return null;
+    }
+  }, []);
+
+  // 🧹 LIMPEZA DO SISTEMA
+  const cleanupSystem = useCallback(async () => {
+    try {
+      await fiiDataAPI.cleanup();
+      console.log('✅ Limpeza do sistema concluída');
+    } catch (error) {
+      console.error('❌ Erro na limpeza:', error);
+    }
+  }, []);
+
+  // 🎯 BUSCAR FII ESPECÍFICO
+  const getFIIDetails = useCallback(async (ticker) => {
+    try {
+      const fiis = await fiiDataAPI.getFIIData([ticker]);
+      return fiis.length > 0 ? fiis[0] : null;
+    } catch (error) {
+      console.error(`❌ Erro ao buscar ${ticker}:`, error);
+      return null;
+    }
+  }, []);
+
+  // 💾 SALVAR ANÁLISE NO LOCALSTORAGE
+  const saveAnalysisToLocalStorage = (analysis) => {
+    try {
+      const dataToSave = {
+        ...analysis,
+        userId: user?.id,
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem('fii_last_analysis', JSON.stringify(dataToSave));
+      console.log('💾 Análise salva no localStorage');
+    } catch (error) {
+      console.warn('⚠️ Erro ao salvar no localStorage:', error);
+    }
+  };
+
+  // 📥 CARREGAR ANÁLISE DO LOCALSTORAGE
+  const loadAnalysisFromLocalStorage = () => {
+    try {
+      const saved = localStorage.getItem('fii_last_analysis');
+      if (saved) {
+        const data = JSON.parse(saved);
+        // Verificar se é do usuário atual e não é muito antiga (24h)
+        const isCurrentUser = data.userId === user?.id;
+        const isRecent = new Date() - new Date(data.savedAt) < 24 * 60 * 60 * 1000; // 24 horas
+        
+        if (isCurrentUser && isRecent) {
+          console.log('📥 Análise recuperada do localStorage');
+          return data;
+        } else {
+          // Remover se for antiga ou de outro usuário
+          localStorage.removeItem('fii_last_analysis');
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Erro ao carregar do localStorage:', error);
+      localStorage.removeItem('fii_last_analysis');
+    }
+    return null;
+  };
+
+  // 🗑️ LIMPAR DADOS PERSISTIDOS
+  const clearPersistedData = () => {
+    localStorage.removeItem('fii_last_analysis');
+    setLastAnalysis(null);
+    setSuggestions([]);
+  };
+
+  // 📊 CARREGAR ÚLTIMA ANÁLISE (localStorage + Supabase)
+  const loadLastAnalysis = async () => {
+    try {
+      console.log('📊 Carregando última análise...');
+      
+      // 1. Tentar carregar do localStorage primeiro (mais rápido)
+      const localData = loadAnalysisFromLocalStorage();
+      if (localData) {
+        setLastAnalysis(localData);
+        setSuggestions(localData.suggestions || []);
+        setLastUpdate(localData.timestamp);
+        console.log('✅ Análise carregada do localStorage');
+        return;
+      }
+
+      // 2. Se não tiver no localStorage, buscar do Supabase
+      if (user?.id) {
+        const { data, error } = await supabase
+          .from('fii_ai_analysis')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(10); // Buscar últimas 10 análises
+
+        if (error) {
+          console.warn('⚠️ Erro ao carregar análises do Supabase:', error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          // Agrupar por timestamp/sessão (análises da mesma sessão)
+          const groupedAnalyses = groupAnalysesBySession(data);
+          
+          if (groupedAnalyses.length > 0) {
+            const lastSession = groupedAnalyses[0];
+            const reconstructedAnalysis = reconstructAnalysisFromSupabase(lastSession);
+            
+            setLastAnalysis(reconstructedAnalysis);
+            setSuggestions(reconstructedAnalysis.suggestions || []);
+            setLastUpdate(reconstructedAnalysis.timestamp);
+            
+            // Salvar no localStorage para próxima vez
+            saveAnalysisToLocalStorage(reconstructedAnalysis);
+            
+            console.log(`✅ Análise reconstruída do Supabase: ${lastSession.length} sugestões`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar última análise:', error);
+    }
+  };
+
+  // 🔄 AGRUPAR ANÁLISES POR SESSÃO
+  const groupAnalysesBySession = (analyses) => {
+    const sessions = {};
+    
+    analyses.forEach(analysis => {
+      // Usar data de criação como chave da sessão (mesmo dia)
+      const sessionKey = analysis.created_at.split('T')[0]; // YYYY-MM-DD
+      
+      if (!sessions[sessionKey]) {
+        sessions[sessionKey] = [];
+      }
+      sessions[sessionKey].push(analysis);
+    });
+
+    // Retornar sessões ordenadas por data (mais recente primeiro)
+    return Object.values(sessions).sort((a, b) => 
+      new Date(b[0].created_at) - new Date(a[0].created_at)
+    );
+  };
+
+  // 🔧 RECONSTRUIR ANÁLISE DO SUPABASE
+  const reconstructAnalysisFromSupabase = (sessionAnalyses) => {
+    const suggestions = sessionAnalyses.map(analysis => ({
+      ticker: analysis.ticker,
+      name: analysis.ticker, // Nome será buscado depois se necessário
+      price: 0, // Será atualizado com dados atuais
+      dividendYield: 0, // Será atualizado com dados atuais
+      pvp: 0, // Será atualizado com dados atuais
+      sector: 'N/A', // Será atualizado com dados atuais
+      recommendation: analysis.recommendation,
+      score: analysis.score,
+      targetPrice: analysis.target_price,
+      reasoning: analysis.reasoning,
+      strengths: analysis.strengths,
+      weaknesses: analysis.weaknesses,
+      risks: analysis.risks,
+      catalysts: analysis.catalysts,
+      riskLevel: analysis.risk_level,
+      suitability: analysis.suitability,
+      timeHorizon: analysis.time_horizon,
+      intrinsicValue: analysis.intrinsic_value,
+      upsidePotential: analysis.upside_potential,
+      safetyMargin: analysis.safety_margin,
+      // Campos para compatibilidade com Investment.jsx
+      percentage: 25, // Distribuição igual
+      recommendedAmount: 0, // Será calculado depois
+      shares: 0 // Será calculado depois
+    }));
+
+    // ✅ CORREÇÃO: Tentar extrair formData do primeiro registro se disponível
+    const firstAnalysis = sessionAnalyses[0];
+    let formData = {
+      riskProfile: 'N/A',
+      investmentGoal: 'N/A', 
+      timeHorizon: firstAnalysis.time_horizon || 'N/A',
+      amount: 0
+    };
+
+    // ✅ NOVO: Tentar inferir dados do perfil a partir das análises
+    // Se todas as análises têm o mesmo time_horizon, usar esse valor
+    const timeHorizons = [...new Set(sessionAnalyses.map(a => a.time_horizon).filter(Boolean))];
+    if (timeHorizons.length === 1) {
+      formData.timeHorizon = timeHorizons[0];
+    }
+
+    // ✅ NOVO: Inferir riskProfile baseado nos scores médios
+    const avgScore = sessionAnalyses.reduce((sum, a) => sum + (a.score || 0), 0) / sessionAnalyses.length;
+    if (avgScore >= 8.5) {
+      formData.riskProfile = 'Conservador';
+    } else if (avgScore >= 7.0) {
+      formData.riskProfile = 'Moderado';
+    } else {
+      formData.riskProfile = 'Agressivo';
+    }
+
+    return {
+      suggestions,
+      portfolioStrategy: {
+        overallApproach: "Estratégia baseada em análise fundamentalista",
+        diversification: "Diversificação setorial equilibrada",
+        expectedReturn: "Retorno focado em dividendos sustentáveis",
+        riskManagement: "Gestão de risco conservadora"
+      },
+      timestamp: sessionAnalyses[0].created_at,
+      source: 'supabase_recovery',
+      isRecovered: true,
+      // ✅ CORREÇÃO: Garantir que campos obrigatórios estejam presentes
+      formData: formData,
+      totalFIIsAnalyzed: sessionAnalyses.length * 10, // Estimativa baseada no número de sugestões
+      bestFIIsSelected: sessionAnalyses.length * 5,
+      finalFIIsForAI: sessionAnalyses.length * 15
+    };
   };
 
   const value = {
@@ -791,27 +1115,41 @@ export const AIProvider = ({ children }) => {
     isConfigured,
     loading,
     error,
+    lastUpdate,
+    suggestions,
+    lastAnalysis, // ✅ NOVO: Última análise completa
     
-    // Funções Claude
-    setApiKey,
-    removeApiKey,
+    // Métodos principais
+    generateSuggestions,
+    refreshData,
+    
+    // ✅ NOVO: Métodos de persistência
+    loadLastAnalysis,
+    clearPersistedData,
+    saveAnalysisToLocalStorage,
+    
+    // Métodos utilitários
+    getSystemStats,
+    cleanupSystem,
+    getFIIDetails,
+    
+    // Limpar estados
+    clearError: () => setError(null),
+    clearSuggestions: () => {
+      setSuggestions([]);
+      setLastAnalysis(null);
+      clearPersistedData(); // ✅ NOVO: Limpar também dados persistidos
+    },
+    
+    // Novos métodos
     getApiKey,
+    reloadSettings,
     
-    // Funções BRAPI
-    getBrapiToken,
+    // ✅ NOVO: Verificar se tem análise salva
+    hasLastAnalysis: () => !!lastAnalysis,
     
-    // Funções de análise
-    generateInvestmentSuggestions,
-    analyzeFII,
-    analyzePortfolio,
-    generateMarketAnalysis,
-    
-    // Utilitários
-    clearError,
-    testBRAPIDataDebug,
-    debugDYData,
-    testBRAPIRange,
-    testHybridMethodDebug,
+    // ✅ NOVO: Obter timestamp da última análise
+    getLastAnalysisTime: () => lastAnalysis?.timestamp || lastUpdate
   };
 
   return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
@@ -819,8 +1157,8 @@ export const AIProvider = ({ children }) => {
 
 export const useAI = () => {
   const context = useContext(AIContext);
-  if (context === undefined) {
-    throw new Error("useAI must be used within an AIProvider");
+  if (!context) {
+    throw new Error('useAI must be used within an AIProvider');
   }
   return context;
 };

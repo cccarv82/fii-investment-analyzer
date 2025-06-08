@@ -44,7 +44,8 @@ const Settings = () => {
   // ✅ AI context para gerenciar Claude
   const { 
     isConfigured,
-    getApiKey 
+    getApiKey,
+    reloadSettings
   } = useAI();
 
   // 🎯 Estados para configurações
@@ -190,6 +191,10 @@ const Settings = () => {
       setSettings(updatedSettings);
       setNewSettings({ ...newSettings, claude_api_key: "" });
       setShowNewClaudeKey(false);
+      
+      // 🔄 Recarregar configurações no AIContext
+      await reloadSettings();
+      
       setSuccessMessage("✅ Claude API Key configurada com sucesso!");
     } catch (err) {
       console.error("Erro ao configurar API key:", err);
@@ -253,6 +258,10 @@ const Settings = () => {
       await saveUserSettings(updatedSettings);
       setSettings(updatedSettings);
       setShowClaudeKey(false);
+      
+      // 🔄 Recarregar configurações no AIContext
+      await reloadSettings();
+      
       setSuccessMessage("✅ Claude API Key removida com sucesso!");
     } catch (err) {
       console.error("Erro ao remover API key:", err);
@@ -470,8 +479,8 @@ const Settings = () => {
                         type={showClaudeKey ? "text" : "password"}
                         value={
                           showClaudeKey
-                            ? getApiKey()
-                            : getMaskedKey(getApiKey())
+                            ? settings.claude_api_key
+                            : getMaskedKey(settings.claude_api_key)
                         }
                         readOnly
                         className="flex-1 bg-gray-50"

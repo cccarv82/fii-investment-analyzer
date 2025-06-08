@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   TrendingUp,
   AlertCircle,
@@ -28,7 +28,7 @@ import { Button } from "../components/ui/button";
 import { formatCurrency, formatPercentage } from "../lib/utils/formatters";
 import { useAI } from "../contexts/AIContext";
 import { usePortfolio } from "../contexts/PortfolioContext";
-import { getAllFIIData, getBestFIIsForAI } from "../lib/api/fii_data_manager";
+import fiiDataAPI from "../lib/api/fiiDataAPI";
 import InvestmentForm from "../components/investment/InvestmentForm";
 import { SuggestionsList } from "../components/investment/SuggestionCard";
 import CacheControl from "../components/common/CacheControl";
@@ -40,25 +40,67 @@ const Investment = () => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("");
   const [activeTab, setActiveTab] = useState("analysis");
+  const [isNewAnalysisInProgress, setIsNewAnalysisInProgress] = useState(false);
 
-  const { generateInvestmentSuggestions, isConfigured, getBrapiToken } =
-    useAI();
+  const { 
+    generateSuggestions, 
+    isConfigured, 
+    lastAnalysis, 
+    hasLastAnalysis, 
+    getLastAnalysisTime,
+    loadLastAnalysis 
+  } = useAI();
   const { addInvestment, positions } = usePortfolio();
 
-  // ✅ CORREÇÃO 1: Função para calcular valor total real
-  const calculateRealTotal = () => {
-    if (!suggestions?.suggestions) return 0;
-
-    return suggestions.suggestions.reduce((total, suggestion) => {
-      const shares = suggestion.shares || 0;
-      const price = suggestion.price || 0;
-      return total + shares * price;
-    }, 0);
+  const loadPreviousAnalysis = () => {
+    if (hasLastAnalysis() && lastAnalysis) {
+      console.log('📥 Carregando análise anterior manualmente...');
+      
+      const enrichedAnalysis = {
+        ...lastAnalysis,
+        totalFIIsAnalyzed: lastAnalysis.totalFIIsAnalyzed || 0,
+        formData: lastAnalysis.formData || {
+          riskProfile: 'N/A',
+          investmentGoal: 'N/A',
+          timeHorizon: 'N/A',
+          amount: 0
+        },
+        suggestions: (lastAnalysis.suggestions || []).map(suggestion => ({
+          ...suggestion,
+          price: suggestion.price || 0,
+          shares: suggestion.shares || 0,
+          recommendedAmount: suggestion.recommendedAmount || 0,
+          percentage: suggestion.percentage || 0
+        }))
+      };
+      
+      setSuggestions(enrichedAnalysis);
+      setActiveTab("results");
+      console.log(`✅ Análise anterior carregada: ${enrichedAnalysis.suggestions?.length || 0} sugestões`);
+    }
   };
 
-  // ✅ CORREÇÃO 4: Função para calcular retorno esperado realista
+  const calculateRealTotal = () => {
+    if (!suggestions?.suggestions || !Array.isArray(suggestions.suggestions)) {
+      console.log('�� calculateRealTotal: Sem sugestões válidas');
+      return 0;
+    }
+
+    const total = suggestions.suggestions.reduce((total, suggestion) => {
+      const shares = Number(suggestion.shares) || 0;
+      const price = Number(suggestion.price) || 0;
+      const amount = shares * price;
+      
+      console.log(`🔍 ${suggestion.ticker}: ${shares} cotas × R$ ${price.toFixed(2)} = R$ ${amount.toFixed(2)}`);
+      return total + amount;
+    }, 0);
+
+    console.log(`🔍 calculateRealTotal: Total = R$ ${total.toFixed(2)}`);
+    return total;
+  };
+
   const calculateExpectedReturn = () => {
-    if (!suggestions?.suggestions || suggestions.suggestions.length === 0) {
+    if (!suggestions?.suggestions || !Array.isArray(suggestions.suggestions) || suggestions.suggestions.length === 0) {
       return {
         dividendYield: 0,
         appreciation: 7,
@@ -67,29 +109,47 @@ const Investment = () => {
       };
     }
 
-    // DY médio da carteira
-    const avgDY =
-      suggestions.suggestions.reduce((sum, fii) => {
-        return sum + (fii.dividendYield || 0);
-      }, 0) / suggestions.suggestions.length;
+    const validSuggestions = suggestions.suggestions.filter(fii => 
+      fii.dividendYield && !isNaN(fii.dividendYield) && fii.dividendYield > 0
+    );
 
-    // Valorização esperada conservadora (5-10%)
-    const expectedAppreciation = 7; // 7% ao ano
+    if (validSuggestions.length === 0) {
+      return {
+        dividendYield: 0,
+        appreciation: 7,
+        total: 7,
+        breakdown: "DY não disponível para cálculo",
+      };
+    }
 
-    // Retorno total
+    const avgDY = validSuggestions.reduce((sum, fii) => {
+      return sum + (Number(fii.dividendYield) || 0);
+    }, 0) / validSuggestions.length;
+
+    const expectedAppreciation = 7;
+
     const totalReturn = avgDY + expectedAppreciation;
 
     return {
       dividendYield: avgDY,
       appreciation: expectedAppreciation,
       total: totalReturn,
-      breakdown: `DY ${avgDY.toFixed(
-        1
-      )}% + Valorização ${expectedAppreciation}% = ${totalReturn.toFixed(1)}%`,
+      breakdown: `DY ${avgDY.toFixed(1)}% + Valorização ${expectedAppreciation}% = ${totalReturn.toFixed(1)}%`,
     };
   };
 
-  // 🔍 FUNÇÃO DE DEBUG DETALHADO
+  const getSummaryData = () => {
+    const data = {
+      fiisRecomendados: suggestions?.suggestions?.length || 0,
+      valorTotalReal: calculateRealTotal(),
+      fiisAnalisados: suggestions?.totalFIIsAnalyzed || 0,
+      perfilRisco: suggestions?.formData?.riskProfile || "N/A"
+    };
+
+    console.log('🔍 getSummaryData:', data);
+    return data;
+  };
+
   const debugFIIData = (fiis, step) => {
     console.log(`\\n🔍 DEBUG ${step}:`);
     console.log(`Total de FIIs: ${fiis.length}`);
@@ -105,7 +165,6 @@ const Investment = () => {
         qualityScore: sample.qualityScore,
       });
 
-      // Estatísticas rápidas
       const withPrice = fiis.filter((f) => f.price && f.price > 0).length;
       const withDY = fiis.filter(
         (f) => f.dividendYield && f.dividendYield > 0
@@ -117,7 +176,6 @@ const Investment = () => {
         `Estatísticas: price=${withPrice}, DY=${withDY}, PVP=${withPVP}, sector=${withSector}`
       );
 
-      // Top 5 por score
       const topByScore = fiis
         .filter((f) => f.qualityScore)
         .sort((a, b) => b.qualityScore - a.qualityScore)
@@ -132,95 +190,76 @@ const Investment = () => {
         );
       });
 
-      // 🔍 DEBUG DETALHADO DOS FILTROS
       if (step === "APÓS FILTROS DE PERFIL" && fiis.length === 0) {
         console.log("\\n🚨 INVESTIGANDO POR QUE 0 FIIs PASSARAM:");
         console.log("Vamos testar alguns FIIs manualmente...");
 
-        // ❌ REMOVIDO: Dados de teste hardcoded que causavam o problema
-        // Os dados de teste foram removidos para evitar confusão
         console.log(
-          "✅ Dados de teste removidos - usando apenas dados reais da BRAPI"
+          "✅ Dados de teste removidos - usando apenas dados reais do Status Invest"
         );
       }
     }
   };
 
-  // 🎯 Função principal ULTIMATE para obter sugestões com IA SUPREMA
   const handleSubmitInvestment = async (formData, forceRefresh = false) => {
     setIsLoading(true);
+    setIsNewAnalysisInProgress(true);
     setError(null);
     setLoadingProgress(0);
     setLoadingMessage("Inicializando análise ULTIMATE...");
 
     try {
-      // 🔧 CORREÇÃO: Verificar configurações antes de começar
       if (!isConfigured) {
         throw new Error(
           "Claude API key não configurada. Configure nas Configurações."
         );
       }
 
-      const brapiToken = getBrapiToken();
-      if (!brapiToken) {
-        throw new Error(
-          "BRAPI token não configurado. Configure nas Configurações."
-        );
-      }
-
-      // 1. 🚀 CARREGAR 300 FIIs (meta ultimate)
       setLoadingProgress(15);
-      setLoadingMessage("Carregando 300 FIIs da B3 (meta ultimate)...");
+      setLoadingMessage("Carregando FIIs do Status Invest...");
 
-      console.log(
-        "🔑 [Investment] Usando BRAPI token do Supabase:",
-        !!brapiToken
-      );
+      console.log("🔑 [Investment] Usando dados do Status Invest");
 
-      const allFIIs = await getAllFIIData(brapiToken, forceRefresh);
+      const allFIIs = await fiiDataAPI.getFIIData();
       console.log(`📊 ${allFIIs.length} FIIs carregados para análise`);
-      debugFIIData(allFIIs, "DADOS ORIGINAIS - 300 FIIs");
+      debugFIIData(allFIIs, "DADOS ORIGINAIS - STATUS INVEST");
 
-      // 🔧 VALIDAÇÃO: Verificar se temos FIIs suficientes
-      if (allFIIs.length < 50) {
+      if (allFIIs.length < 10) {
         throw new Error(
-          `Apenas ${allFIIs.length} FIIs carregados. Verifique sua configuração BRAPI ou tente novamente.`
+          `Apenas ${allFIIs.length} FIIs carregados. Tente novamente mais tarde.`
         );
       }
 
-      // 2. 🎯 SELECIONAR OS 100 MELHORES PARA IA (algoritmo inteligente)
       setLoadingProgress(30);
       setLoadingMessage(
-        "Selecionando os 100 melhores FIIs com algoritmo inteligente..."
+        "Selecionando os melhores FIIs com algoritmo inteligente..."
       );
 
-      const bestFIIs = await getBestFIIsForAI(brapiToken, forceRefresh);
+      const bestFIIs = await fiiDataAPI.getBestFIIsForAI(60);
       console.log(`🏆 ${bestFIIs.length} melhores FIIs selecionados para IA`);
-      debugFIIData(bestFIIs, "100 MELHORES PARA IA");
+      debugFIIData(bestFIIs, "MELHORES PARA IA");
 
-      if (bestFIIs.length < 20) {
+      if (bestFIIs.length < 10) {
         throw new Error(
           `Apenas ${bestFIIs.length} FIIs de qualidade encontrados. Tente novamente mais tarde.`
         );
       }
 
-      // 3. 🔧 PULAR FILTROS DE PERFIL - USAR DIRETO OS 100 MELHORES
       setLoadingProgress(45);
       setLoadingMessage(
-        "Usando os 100 melhores FIIs diretamente (sem filtros restritivos)..."
+        "Usando os melhores FIIs diretamente..."
       );
 
       console.log(
-        "🎯 PULANDO FILTROS DE PERFIL - usando os 100 melhores diretamente"
+        "🎯 Usando os melhores FIIs diretamente"
       );
 
-      const finalFIIsForAI = bestFIIs.slice(0, 60); // Usar 60 melhores para IA
+      const finalFIIsForAI = bestFIIs.slice(0, 60);
       console.log(
-        `🎯 ${finalFIIsForAI.length} FIIs selecionados para IA (sem filtros restritivos)`
+        `🎯 ${finalFIIsForAI.length} FIIs selecionados para IA`
       );
-      debugFIIData(finalFIIsForAI, "FINAL PARA IA (SEM FILTROS)");
+      debugFIIData(finalFIIsForAI, "FINAL PARA IA");
 
-      // 4. 🤖 USAR IA SUPREMA (PROMPT OTIMIZADO)
       setLoadingProgress(60);
       setLoadingMessage(
         "Analisando com IA SUPREMA (Warren Buffett + Ray Dalio + Peter Lynch)..."
@@ -235,7 +274,6 @@ const Investment = () => {
         investmentAmount: formData.amount,
       };
 
-      // 🔧 DADOS OTIMIZADOS: Enviar apenas dados essenciais para IA (REDUZIDO)
       const optimizedFIIs = finalFIIsForAI.slice(0, 80).map((fii) => ({
         ticker: fii.ticker,
         name: fii.name,
@@ -250,13 +288,8 @@ const Investment = () => {
         `🎯 Enviando ${optimizedFIIs.length} FIIs otimizados para IA`
       );
 
-      const aiAnalysis = await generateInvestmentSuggestions(
-        optimizedFIIs,
-        userProfile,
-        positions || []
-      );
+      const aiAnalysis = await generateSuggestions(userProfile);
 
-      // 5. 🔧 PROCESSAR E VALIDAR RECOMENDAÇÕES DA IA
       setLoadingProgress(80);
       setLoadingMessage("Processando recomendações da IA SUPREMA...");
 
@@ -272,7 +305,6 @@ const Investment = () => {
 
       console.log(`✅ IA retornou ${aiAnalysis.suggestions.length} sugestões`);
 
-      // 6. 🔧 VALIDAR E CALCULAR ALOCAÇÕES CORRETAS
       setLoadingProgress(90);
       setLoadingMessage("Validando e calculando alocações...");
 
@@ -282,11 +314,10 @@ const Investment = () => {
         allFIIs
       );
 
-      // 7. ✅ FINALIZAR E MUDAR PARA ABA RESULTADOS
       setLoadingProgress(100);
       setLoadingMessage("Análise concluída com sucesso!");
 
-      setSuggestions({
+      const finalSuggestions = {
         ...validatedSuggestions,
         formData,
         timestamp: new Date().toISOString(),
@@ -294,17 +325,21 @@ const Investment = () => {
         totalFIIsAnalyzed: allFIIs.length,
         bestFIIsSelected: bestFIIs.length,
         finalFIIsForAI: finalFIIsForAI.length,
-      });
+        isRecovered: false
+      };
 
-      // 🎯 AUTO-SWITCH PARA ABA RESULTADOS
+      setSuggestions(finalSuggestions);
+
       setTimeout(() => {
         setActiveTab("results");
+        setIsNewAnalysisInProgress(false);
       }, 1000);
 
       console.log("✅ Análise ULTIMATE concluída com sucesso!");
     } catch (error) {
       console.error("❌ Erro na análise:", error);
       setError(error.message);
+      setIsNewAnalysisInProgress(false);
     } finally {
       setIsLoading(false);
       setLoadingProgress(0);
@@ -312,7 +347,6 @@ const Investment = () => {
     }
   };
 
-  // 🔧 VALIDAR E CALCULAR ALOCAÇÕES CORRETAS - VERSÃO CORRIGIDA
   const validateAndCalculateAllocations = (
     aiAnalysis,
     totalAmount,
@@ -323,12 +357,10 @@ const Investment = () => {
     
     const suggestions = aiAnalysis.suggestions || [];
 
-    // Garantir que temos pelo menos 1 sugestão
     if (suggestions.length === 0) {
       throw new Error("IA não retornou nenhuma sugestão válida");
     }
 
-    // Calcular alocação igual para todas as sugestões
     const equalPercentage = 100 / suggestions.length;
 
     const validatedSuggestions = suggestions.map((suggestion, index) => {
@@ -336,29 +368,40 @@ const Investment = () => {
       console.log(`   IA Price: ${suggestion.price}`);
       console.log(`   IA TargetPrice: ${suggestion.targetPrice}`);
       
-      // Buscar dados completos do FII
       const fullFIIData = allFIIs.find(
         (fii) => fii.ticker === suggestion.ticker
       );
 
-      // ✅ CORREÇÃO CRÍTICA: Priorizar SEMPRE dados reais da BRAPI
       const price = fullFIIData?.price || suggestion.price || 0;
       const percentage = suggestion.percentage || equalPercentage;
       const recommendedAmount = (totalAmount * percentage) / 100;
       const shares = price > 0 ? Math.floor(recommendedAmount / price) : 0;
 
-      console.log(`   BRAPI Price: ${fullFIIData?.price}`);
+      console.log(`   Status Invest Price: ${fullFIIData?.price}`);
       console.log(`   Final Price: ${price}`);
+      console.log(`   Percentage: ${percentage}%`);
+      console.log(`   Total Amount: R$ ${totalAmount}`);
+      console.log(`   Recommended Amount: R$ ${recommendedAmount.toFixed(2)}`);
+      console.log(`   Calculated Shares: ${shares}`);
 
-      // ✅ VALIDAÇÃO SUPER AGRESSIVA: Corrigir targetPrice irreal
+      // ✅ CORREÇÃO CRÍTICA: Garantir que shares nunca seja 0 se há valor para investir
+      let finalShares = shares;
+      if (finalShares === 0 && recommendedAmount > 0 && price > 0) {
+        finalShares = Math.max(1, Math.floor(recommendedAmount / price));
+        console.warn(`🔧 [${suggestion.ticker}] CORREÇÃO: Shares era 0, forçando para ${finalShares}`);
+      }
+
+      // ✅ VALIDAÇÃO ADICIONAL: Se ainda for 0, usar valor mínimo
+      if (finalShares === 0 && price > 0) {
+        finalShares = 1;
+        console.warn(`🔧 [${suggestion.ticker}] FALLBACK: Definindo shares mínimo = 1`);
+      }
+
       let targetPrice = suggestion.targetPrice;
       
-      // Log do valor original
       console.log(`   TargetPrice Original: ${targetPrice} (tipo: ${typeof targetPrice})`);
       
-      // Converter string para número se necessário
       if (typeof targetPrice === 'string') {
-        // Remover símbolos de moeda e espaços
         const cleanString = targetPrice.replace(/[R$\s,]/g, '').replace(',', '.');
         const match = cleanString.match(/[\d.]+/);
         if (match) {
@@ -370,9 +413,8 @@ const Investment = () => {
         }
       }
       
-      // VALIDAÇÃO OBRIGATÓRIA: Máximo 12% de valorização (alinhado com prompts revolucionários)
       if (targetPrice && price > 0) {
-        const maxRealisticTarget = price * 1.12; // Máximo 12% de valorização (mais conservador)
+        const maxRealisticTarget = price * 1.12;
         const currentIncrease = ((targetPrice - price) / price) * 100;
         
         console.log(`   Aumento atual: ${currentIncrease.toFixed(1)}%`);
@@ -390,13 +432,11 @@ const Investment = () => {
           `✅ [${suggestion.ticker}] TargetPrice FINAL: R$ ${targetPrice.toFixed(2)} (${((targetPrice - price) / price * 100).toFixed(1)}% acima do atual R$ ${price.toFixed(2)})`
         );
       } else if (price > 0) {
-        // Se não tem targetPrice válido, calcular um conservador (8% de valorização)
         targetPrice = price * 1.08;
         console.log(
           `🔧 [${suggestion.ticker}] TargetPrice calculado conservadoramente: R$ ${targetPrice.toFixed(2)} (8% acima do atual)`
         );
       } else {
-        // Preço inválido
         targetPrice = 0;
         console.error(`❌ [${suggestion.ticker}] Preço inválido: ${price}`);
       }
@@ -404,11 +444,10 @@ const Investment = () => {
       console.log(
         `🔧 [${suggestion.ticker}] RESUMO FINAL:`
       );
-      console.log(`   Preço: R$ ${price.toFixed(2)} (BRAPI: ${fullFIIData?.price}, IA: ${suggestion.price})`);
+      console.log(`   Preço: R$ ${price.toFixed(2)} (Status Invest: ${fullFIIData?.price}, IA: ${suggestion.price})`);
       console.log(`   TargetPrice: R$ ${targetPrice.toFixed(2)}`);
       console.log(`   Valorização: ${price > 0 ? ((targetPrice - price) / price * 100).toFixed(1) : 0}%`);
 
-      // ✅ NOVA CORREÇÃO: Validar e corrigir análise fundamentalista (reasoning)
       let correctedReasoning = suggestion.reasoning || '';
       const currentDY = fullFIIData?.dividendYield || suggestion.dividendYield || 0;
       const selicRate = 14.75;
@@ -418,9 +457,7 @@ const Investment = () => {
       console.log(`   Selic atual: ${selicRate}%`);
       console.log(`   DY vs Selic: ${currentDY > selicRate ? 'SUPERIOR' : currentDY < selicRate ? 'INFERIOR' : 'IGUAL'}`);
       
-      // Detectar e corrigir análises incorretas sobre DY vs Selic
       if (correctedReasoning) {
-        // Padrões incorretos a serem corrigidos
         const incorrectPatterns = [
           /DY superior à Selic de [\d,.]+ quando/gi,
           /DY de [\d,.]+ supera a Selic/gi,
@@ -428,15 +465,12 @@ const Investment = () => {
           /DY superior à Selic/gi
         ];
         
-        // Verificar se há padrões incorretos E se o DY é realmente inferior à Selic
         const hasIncorrectPattern = incorrectPatterns.some(pattern => pattern.test(correctedReasoning));
         
         if (hasIncorrectPattern && currentDY < selicRate) {
           console.warn(`🚨 [${suggestion.ticker}] ANÁLISE INCORRETA detectada! DY ${currentDY.toFixed(2)}% não é superior à Selic ${selicRate}%`);
           
-          // Corrigir o texto da análise
           if (currentDY < selicRate) {
-            // DY inferior à Selic
             correctedReasoning = correctedReasoning.replace(
               /DY superior à Selic de [\d,.]+%[^.]*\./gi,
               `DY de ${currentDY.toFixed(1)}% está abaixo da Selic de ${selicRate}%, mas é compensado pelo potencial de valorização e qualidade dos ativos.`
@@ -457,20 +491,18 @@ const Investment = () => {
           
           console.log(`✅ [${suggestion.ticker}] Análise fundamentalista CORRIGIDA`);
         } else if (currentDY >= selicRate) {
-          // DY realmente superior - garantir que está correto
           console.log(`✅ [${suggestion.ticker}] Análise fundamentalista CORRETA - DY realmente superior à Selic`);
         }
       }
 
       return {
         ...suggestion,
-        price: price, // ✅ Agora usa preço real da BRAPI
-        targetPrice: targetPrice, // ✅ Agora validado e realista
-        reasoning: correctedReasoning, // ✅ NOVO: Análise fundamentalista corrigida
+        price: price,
+        targetPrice: targetPrice,
+        reasoning: correctedReasoning,
         percentage: percentage,
         recommendedAmount: recommendedAmount,
-        shares: shares,
-        // Garantir que todos os campos necessários existem
+        shares: finalShares,
         dividendYield:
           fullFIIData?.dividendYield || suggestion.dividendYield || 0,
         pvp: fullFIIData?.pvp || suggestion.pvp || 0,
@@ -490,12 +522,10 @@ const Investment = () => {
     };
   };
 
-  // ✅ CORREÇÃO CRÍTICA: Função para adicionar à carteira com validação de preço
   const handleAddToPortfolio = async (suggestion) => {
     try {
       console.log("🔄 Adicionando à carteira:", suggestion);
 
-      // ✅ VALIDAÇÃO CRÍTICA: Garantir que average_price seja sempre > 0
       const price = suggestion.price || 0;
       const shares = suggestion.shares || 0;
 
@@ -516,9 +546,8 @@ const Investment = () => {
         name: suggestion.name || suggestion.ticker,
         sector: suggestion.sector || "N/A",
         shares: shares,
-        // ✅ CORREÇÃO CRÍTICA: Garantir que average_price seja sempre > 0
-        average_price: Math.max(price, 0.01), // Mínimo de R$ 0,01
-        current_price: Math.max(price, 0.01), // Mínimo de R$ 0,01
+        average_price: Math.max(price, 0.01),
+        current_price: Math.max(price, 0.01),
         dividend_yield: suggestion.dividendYield || 0,
         pvp: suggestion.pvp || 0,
       };
@@ -533,9 +562,19 @@ const Investment = () => {
     }
   };
 
+  const isIncompleteRecoveredAnalysis = (analysis) => {
+    if (!analysis || !analysis.isRecovered) return false;
+    
+    const hasFormData = analysis.formData && analysis.formData.riskProfile !== 'N/A';
+    const hasTotalAnalyzed = analysis.totalFIIsAnalyzed && analysis.totalFIIsAnalyzed > 0;
+    const hasValidSuggestions = analysis.suggestions && analysis.suggestions.length > 0 && 
+      analysis.suggestions.some(s => s.price > 0 && s.shares > 0);
+    
+    return !hasFormData || !hasTotalAnalyzed || !hasValidSuggestions;
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -547,15 +586,73 @@ const Investment = () => {
         </div>
       </div>
 
-      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="analysis">Nova Análise</TabsTrigger>
-          <TabsTrigger value="results">Resultados</TabsTrigger>
+          <TabsTrigger value="analysis">
+            Nova Análise
+            {hasLastAnalysis() && !suggestions && (
+              <span className="ml-1 w-2 h-2 bg-blue-500 rounded-full"></span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="results">
+            Resultados
+            {suggestions && (
+              <span className="ml-1 w-2 h-2 bg-green-500 rounded-full"></span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
-        {/* Nova Análise */}
         <TabsContent value="analysis" className="space-y-6">
+          {hasLastAnalysis() && !suggestions && (
+            <Card className="border-border bg-card shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-3 text-foreground">
+                  <div className="p-2 bg-muted rounded-lg">
+                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold">Análise Anterior Disponível</div>
+                    <div className="text-sm font-normal text-muted-foreground mt-1">
+                      Realizada em{" "}
+                      <span className="font-medium text-foreground">
+                        {getLastAnalysisTime() ? 
+                          new Date(getLastAnalysisTime()).toLocaleString("pt-BR") : 
+                          "data não disponível"
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button 
+                    size="sm" 
+                    className="transition-all duration-200"
+                    onClick={loadPreviousAnalysis}
+                  >
+                    <TrendingUp className="mr-2 h-4 w-4" />
+                    Ver Análise Anterior
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="transition-all duration-200"
+                    onClick={() => {
+                      if (lastAnalysis?.formData) {
+                        handleSubmitInvestment(lastAnalysis.formData, true);
+                      }
+                    }}
+                    disabled={isLoading}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Atualizar com Dados Atuais
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -577,10 +674,8 @@ const Investment = () => {
             </CardContent>
           </Card>
 
-          {/* Controle de Cache */}
           <CacheControl 
             onRefresh={(forceRefresh) => {
-              // Usar os últimos parâmetros de análise se disponíveis
               if (suggestions?.formData) {
                 handleSubmitInvestment(suggestions.formData, forceRefresh);
               }
@@ -588,7 +683,6 @@ const Investment = () => {
             isLoading={isLoading}
           />
 
-          {/* Erro */}
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -598,27 +692,77 @@ const Investment = () => {
           )}
         </TabsContent>
 
-        {/* Resultados */}
         <TabsContent value="results" className="space-y-6">
           {suggestions ? (
             <>
-              {/* Resumo da Análise */}
+              {isIncompleteRecoveredAnalysis(suggestions) && (
+                <Card className="border-yellow-200/20 bg-card shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-3 text-foreground">
+                      <div className="p-2 bg-yellow-500/10 rounded-lg">
+                        <AlertCircle className="h-5 w-5 text-yellow-500" />
+                      </div>
+                      <div>
+                        <div className="text-lg font-semibold">Análise Recuperada Incompleta</div>
+                        <div className="text-sm font-normal text-muted-foreground mt-1">
+                          Alguns dados podem estar desatualizados
+                        </div>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-muted-foreground mb-3">
+                      Esta análise foi recuperada do histórico, mas alguns dados podem estar incompletos.
+                      Recomendamos fazer uma nova análise para obter informações atualizadas.
+                    </p>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="transition-all duration-200"
+                      onClick={() => setActiveTab("analysis")}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Fazer Nova Análise
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <PieChart className="h-5 w-5" />
                     Resumo da Análise
+                    {suggestions?.isRecovered && (
+                      <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                        📥 Recuperada
+                      </span>
+                    )}
                   </CardTitle>
-                  <CardDescription>
-                    Análise realizada em{" "}
-                    {new Date(suggestions.timestamp).toLocaleString("pt-BR")}
+                  <CardDescription className="space-y-1">
+                    <div>
+                      Análise realizada em{" "}
+                      {new Date(suggestions.timestamp).toLocaleString("pt-BR")}
+                    </div>
+                    {suggestions?.isRecovered && (
+                      <div className="text-sm text-blue-600">
+                        {(() => {
+                          const analysisAge = Math.round((new Date() - new Date(suggestions.timestamp)) / (1000 * 60 * 60));
+                          return analysisAge < 1 
+                            ? "📥 Recuperada do cache (menos de 1h)" 
+                            : analysisAge < 24 
+                              ? `📥 Recuperada do cache (${analysisAge}h atrás)`
+                              : "📊 Recuperada do histórico (Supabase)";
+                        })()}
+                      </div>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center">
                       <div className="text-2xl font-bold text-primary">
-                        {suggestions.suggestions?.length || 0}
+                        {getSummaryData().fiisRecomendados}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         FIIs Recomendados
@@ -626,7 +770,7 @@ const Investment = () => {
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-primary">
-                        {formatCurrency(calculateRealTotal())}
+                        {formatCurrency(getSummaryData().valorTotalReal)}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         Valor Total Real
@@ -634,7 +778,7 @@ const Investment = () => {
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-primary">
-                        {suggestions.totalFIIsAnalyzed || 0}
+                        {getSummaryData().fiisAnalisados}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         FIIs Analisados
@@ -642,7 +786,7 @@ const Investment = () => {
                     </div>
                     <div className="text-center">
                       <div className="text-2xl font-bold text-primary">
-                        {suggestions.formData?.riskProfile || "N/A"}
+                        {getSummaryData().perfilRisco}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         Perfil de Risco
@@ -652,16 +796,13 @@ const Investment = () => {
                 </CardContent>
               </Card>
 
-              {/* Lista de Sugestões */}
               <SuggestionsList
                 suggestions={suggestions.suggestions || []}
                 onAddToPortfolio={handleAddToPortfolio}
               />
 
-              {/* Controle de Cache - TAMBÉM NA ABA RESULTADOS */}
               <CacheControl 
                 onRefresh={(forceRefresh) => {
-                  // Usar os últimos parâmetros de análise se disponíveis
                   if (suggestions?.formData) {
                     handleSubmitInvestment(suggestions.formData, forceRefresh);
                   }
@@ -669,7 +810,6 @@ const Investment = () => {
                 isLoading={isLoading}
               />
 
-              {/* Estratégia de Portfólio */}
               {suggestions.portfolioStrategy && (
                 <Card>
                   <CardHeader>
@@ -725,7 +865,6 @@ const Investment = () => {
                 </Card>
               )}
 
-              {/* Ações */}
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -734,26 +873,70 @@ const Investment = () => {
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Nova Análise
                 </Button>
+                
+                {suggestions?.formData && (
+                  <Button
+                    variant="default"
+                    onClick={() => handleSubmitInvestment(suggestions.formData, true)}
+                    disabled={isLoading}
+                  >
+                    <TrendingUp className="mr-2 h-4 w-4" />
+                    {isLoading ? "Atualizando..." : "Atualizar Análise"}
+                  </Button>
+                )}
               </div>
             </>
           ) : (
             <>
               <Card>
                 <CardContent className="flex items-center justify-center py-8">
-                  <div className="text-center">
+                  <div className="text-center space-y-4">
                     <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">
-                      Nenhuma análise realizada ainda. Vá para "Nova Análise" para
-                      começar.
-                    </p>
+                    
+                    {hasLastAnalysis() ? (
+                      <div className="space-y-2">
+                        <p className="text-lg font-medium">
+                          📊 Análise anterior disponível
+                        </p>
+                        <p className="text-muted-foreground">
+                          Última análise realizada em{" "}
+                          {getLastAnalysisTime() ? 
+                            new Date(getLastAnalysisTime()).toLocaleString("pt-BR") : 
+                            "data não disponível"
+                          }
+                        </p>
+                        <Button 
+                          onClick={loadPreviousAnalysis}
+                          className="mt-4"
+                        >
+                          <TrendingUp className="mr-2 h-4 w-4" />
+                          Ver Última Análise
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-lg font-medium">
+                          🚀 Pronto para começar?
+                        </p>
+                        <p className="text-muted-foreground">
+                          Nenhuma análise realizada ainda. Vá para "Nova Análise" para
+                          começar sua jornada de investimentos em FIIs.
+                        </p>
+                        <Button 
+                          onClick={() => setActiveTab("analysis")}
+                          className="mt-4"
+                        >
+                          <BarChart3 className="mr-2 h-4 w-4" />
+                          Fazer Primeira Análise
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Controle de Cache - TAMBÉM QUANDO NÃO HÁ RESULTADOS */}
               <CacheControl 
                 onRefresh={(forceRefresh) => {
-                  // Ir para aba de análise se não há dados
                   setActiveTab("analysis");
                 }}
                 isLoading={isLoading}

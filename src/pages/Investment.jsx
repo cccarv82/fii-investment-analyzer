@@ -32,6 +32,7 @@ import fiiDataAPI from "../lib/api/fiiDataAPI";
 import InvestmentForm from "../components/investment/InvestmentForm";
 import { SuggestionsList } from "../components/investment/SuggestionCard";
 import CacheControl from "../components/common/CacheControl";
+import { useNavigate } from "react-router-dom";
 
 const Investment = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +52,7 @@ const Investment = () => {
     loadLastAnalysis 
   } = useAI();
   const { addInvestment, positions } = usePortfolio();
+  const navigate = useNavigate();
 
   const loadPreviousAnalysis = () => {
     if (hasLastAnalysis() && lastAnalysis) {
@@ -68,7 +70,7 @@ const Investment = () => {
         suggestions: (lastAnalysis.suggestions || []).map(suggestion => ({
           ...suggestion,
           price: suggestion.price || 0,
-          shares: suggestion.shares || 0,
+          shares: suggestion.recommendedShares || suggestion.shares || 0,
           recommendedAmount: suggestion.recommendedAmount || 0,
           percentage: suggestion.percentage || 0
         }))
@@ -87,7 +89,7 @@ const Investment = () => {
     }
 
     const total = suggestions.suggestions.reduce((total, suggestion) => {
-      const shares = Number(suggestion.shares) || 0;
+      const shares = Number(suggestion.recommendedShares || suggestion.shares) || 0;
       const price = Number(suggestion.price) || 0;
       const amount = shares * price;
       
@@ -524,10 +526,8 @@ const Investment = () => {
 
   const handleAddToPortfolio = async (suggestion) => {
     try {
-      console.log("🔄 Adicionando à carteira:", suggestion);
-
       const price = suggestion.price || 0;
-      const shares = suggestion.shares || 0;
+      const shares = suggestion.recommendedShares || suggestion.shares || 0;
 
       if (price <= 0) {
         throw new Error(
@@ -552,12 +552,16 @@ const Investment = () => {
         pvp: suggestion.pvp || 0,
       };
 
-      console.log("📊 Dados validados para inserção:", investmentData);
-
       await addInvestment(investmentData);
-      console.log("✅ Investimento adicionado com sucesso!");
+      
+      // Mostrar mensagem de sucesso e redirecionar para carteira
+      if (window.confirm(`✅ ${suggestion.ticker} foi adicionado à sua carteira com sucesso! Deseja ver sua carteira agora?`)) {
+        navigate("/portfolio");
+      }
+      
     } catch (error) {
       console.error("❌ Erro ao adicionar à carteira:", error);
+      alert(`❌ Erro ao adicionar ${suggestion.ticker} à carteira: ${error.message}`);
       throw error;
     }
   };
@@ -568,7 +572,7 @@ const Investment = () => {
     const hasFormData = analysis.formData && analysis.formData.riskProfile !== 'N/A';
     const hasTotalAnalyzed = analysis.totalFIIsAnalyzed && analysis.totalFIIsAnalyzed > 0;
     const hasValidSuggestions = analysis.suggestions && analysis.suggestions.length > 0 && 
-      analysis.suggestions.some(s => s.price > 0 && s.shares > 0);
+      analysis.suggestions.some(s => s.price > 0 && (s.recommendedShares > 0 || s.shares > 0));
     
     return !hasFormData || !hasTotalAnalyzed || !hasValidSuggestions;
   };

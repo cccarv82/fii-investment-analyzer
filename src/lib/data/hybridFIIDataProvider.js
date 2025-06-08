@@ -136,6 +136,7 @@ class HybridFIIDataProvider {
       
       // Metadados
       sector: 'Fundos Imobiliários',
+      segment: null,
       is_active: true
     };
     
@@ -153,6 +154,10 @@ class HybridFIIDataProvider {
       combinedData.management_company = statusInvestData.management_company;
       combinedData.market_cap = statusInvestData.market_cap;
       combinedData.shares_outstanding = statusInvestData.shares_outstanding;
+      
+      combinedData.segment = statusInvestData.segment || null;
+      
+      console.log(`✅ Segmento extraído do Status Invest: ${combinedData.segment}`);
     }
     
     // Aplicar dados do Fundamentus (dados FFO + complementares)
@@ -183,6 +188,11 @@ class HybridFIIDataProvider {
         combinedData.shares_outstanding = fundamentusData.shares_outstanding;
       }
       
+      if (!combinedData.segment && fundamentusData.segment) {
+        combinedData.segment = fundamentusData.segment;
+        console.log(`✅ Segmento extraído do Fundamentus: ${combinedData.segment}`);
+      }
+      
       // Dados exclusivos do Fundamentus
       combinedData.revenue_12m = fundamentusData.revenue_12m;
       combinedData.distributed_income_12m = fundamentusData.distributed_income_12m;
@@ -201,6 +211,7 @@ class HybridFIIDataProvider {
       basic_data: !!statusInvestData,
       ffo_data: !!fundamentusData,
       price: combinedData.price,
+      segment: combinedData.segment,
       ffo_yield: combinedData.ffo_yield,
       p_ffo: combinedData.p_ffo
     });

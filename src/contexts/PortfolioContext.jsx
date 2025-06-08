@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabaseStorage } from "../lib/storage/supabaseStorage";
 import { useAuth } from "./AuthContext";
-import { useAI } from "./AIContext";
+import fiiDataAPI from "../lib/api/fiiDataAPI";
 
-// 🎯 Contexto do Portfolio integrado com Supabase + BRAPI
+// 🎯 Contexto do Portfolio integrado com Supabase + Sistema Próprio (Status Invest + Fundamentus)
 const PortfolioContext = createContext();
 
 // 🔔 Sistema de notificações simples (sem toast)
@@ -31,40 +31,26 @@ const showNotification = (message, type = "info") => {
   }, 4000);
 };
 
-// 🚀 FUNÇÃO PARA BUSCAR PREÇOS REAIS DA BRAPI
-const fetchRealPrices = async (tickers, brapiToken) => {
+// 🚀 FUNÇÃO PARA BUSCAR PREÇOS ATUALIZADOS DO SISTEMA PRÓPRIO
+const fetchUpdatedPrices = async (tickers) => {
   try {
-    if (!brapiToken) {
-      console.warn("⚠️ BRAPI token não disponível para buscar preços reais");
-      return {};
-    }
+    console.log("🔄 Buscando preços atualizados do Status Invest para:", tickers);
 
-    console.log("🔄 Buscando preços reais da BRAPI para:", tickers);
-
-    const tickersString = tickers.join(",");
-    const url = `https://brapi.dev/api/quote/${tickersString}?token=${brapiToken}`;
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Erro na BRAPI: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log("📊 Dados da BRAPI recebidos:", data);
+    // Buscar dados atualizados do nosso sistema
+    const fiiData = await fiiDataAPI.getFIIData(tickers);
+    console.log("📊 Dados do Status Invest recebidos:", fiiData);
 
     const prices = {};
-    if (data.results && Array.isArray(data.results)) {
-      data.results.forEach((stock) => {
-        if (stock.symbol && stock.regularMarketPrice) {
-          prices[stock.symbol] = stock.regularMarketPrice;
-          console.log(`💰 ${stock.symbol}: R$ ${stock.regularMarketPrice}`);
+    fiiData.forEach((fii) => {
+      if (fii.ticker && fii.price) {
+        prices[fii.ticker] = fii.price;
+        console.log(`💰 ${fii.ticker}: R$ ${fii.price}`);
         }
       });
-    }
 
     return prices;
   } catch (error) {
-    console.error("❌ Erro ao buscar preços da BRAPI:", error);
+    console.error("❌ Erro ao buscar preços do Status Invest:", error);
     return {};
   }
 };
@@ -75,7 +61,6 @@ export const PortfolioProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { user, isUserAuthorized } = useAuth();
-  const { getBrapiToken } = useAI();
 
   // 🔄 Carregar dados quando usuário fizer login
   useEffect(() => {
@@ -94,24 +79,34 @@ export const PortfolioProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      console.log("🔄 Carregando carteiras do Supabase...");
 
       const data = await supabaseStorage.getPortfolios();
-      console.log("📊 Carteiras carregadas:", data);
-
       setPortfolios(data || []);
 
-      if (data && data.length > 0 && !currentPortfolio) {
-        const portfolioWithRealPrices = await updatePortfolioWithRealPrices(
-          data[0]
+      // 🚀 CORREÇÃO: Sempre atualizar currentPortfolio se há dados
+      if (data && data.length > 0) {
+        // Se já temos uma carteira atual, recarregar ela especificamente
+        if (currentPortfolio) {
+          const updatedCurrentPortfolio = data.find(p => p.id === currentPortfolio.id);
+          if (updatedCurrentPortfolio) {
+            const portfolioWithUpdatedPrices = await updatePortfolioWithCurrentPrices(
+              updatedCurrentPortfolio
         );
-        setCurrentPortfolio(portfolioWithRealPrices);
-        console.log(
-          "✅ Carteira padrão selecionada com preços reais:",
-          portfolioWithRealPrices
-        );
-      } else if (!data || data.length === 0) {
-        console.log("📝 Nenhuma carteira encontrada - estado vazio");
+            setCurrentPortfolio(portfolioWithUpdatedPrices);
+            console.log("✅ Carteira atual recarregada com preços atualizados:", portfolioWithUpdatedPrices);
+          } else {
+            // Se a carteira atual não existe mais, selecionar a primeira
+            const portfolioWithUpdatedPrices = await updatePortfolioWithCurrentPrices(data[0]);
+            setCurrentPortfolio(portfolioWithUpdatedPrices);
+            console.log("✅ Nova carteira padrão selecionada:", portfolioWithUpdatedPrices);
+          }
+        } else {
+          // Se não há carteira atual, selecionar a primeira
+          const portfolioWithUpdatedPrices = await updatePortfolioWithCurrentPrices(data[0]);
+          setCurrentPortfolio(portfolioWithUpdatedPrices);
+          console.log("✅ Carteira padrão selecionada:", portfolioWithUpdatedPrices);
+        }
+      } else {
         setCurrentPortfolio(null);
       }
     } catch (error) {
@@ -122,20 +117,13 @@ export const PortfolioProvider = ({ children }) => {
       setCurrentPortfolio(null);
     } finally {
       setLoading(false);
-      console.log("✅ Loading finalizado");
     }
   };
 
-  // 🚀 ATUALIZAR CARTEIRA COM PREÇOS REAIS
-  const updatePortfolioWithRealPrices = async (portfolio) => {
+  // 🚀 ATUALIZAR CARTEIRA COM PREÇOS ATUAIS DO STATUS INVEST
+  const updatePortfolioWithCurrentPrices = async (portfolio) => {
     try {
       if (!portfolio.investments || portfolio.investments.length === 0) {
-        return portfolio;
-      }
-
-      const brapiToken = getBrapiToken();
-      if (!brapiToken) {
-        console.warn("⚠️ BRAPI token não disponível - usando preços salvos");
         return portfolio;
       }
 
@@ -147,21 +135,21 @@ export const PortfolioProvider = ({ children }) => {
         return portfolio;
       }
 
-      console.log("🔄 Atualizando preços reais para:", tickers);
-      const realPrices = await fetchRealPrices(tickers, brapiToken);
+      console.log("🔄 Atualizando preços do Status Invest para:", tickers);
+      const updatedPrices = await fetchUpdatedPrices(tickers);
 
-      // Atualizar investments com preços reais
+      // Atualizar investments com preços atuais
       const updatedInvestments = portfolio.investments.map((investment) => {
-        const realPrice = realPrices[investment.ticker];
-        if (realPrice && realPrice > 0) {
-          const newCurrentValue = investment.shares * realPrice;
+        const currentPrice = updatedPrices[investment.ticker];
+        if (currentPrice && currentPrice > 0) {
+          const newCurrentValue = investment.shares * currentPrice;
           console.log(
-            `📈 ${investment.ticker}: ${investment.shares} cotas × R$ ${realPrice} = R$ ${newCurrentValue}`
+            `📈 ${investment.ticker}: ${investment.shares} cotas × R$ ${currentPrice} = R$ ${newCurrentValue}`
           );
 
           return {
             ...investment,
-            current_price: realPrice,
+            current_price: currentPrice,
             current_value: newCurrentValue,
           };
         }
@@ -173,8 +161,30 @@ export const PortfolioProvider = ({ children }) => {
         investments: updatedInvestments,
       };
     } catch (error) {
-      console.error("❌ Erro ao atualizar preços reais:", error);
+      console.error("❌ Erro ao atualizar preços:", error);
       return portfolio;
+    }
+  };
+
+  // 🔄 Recarregar carteira atual (para uso após operações CRUD)
+  const reloadCurrentPortfolio = async () => {
+    if (!currentPortfolio) return;
+    
+    try {
+      console.log("🔄 Recarregando carteira atual após operação...");
+      
+      // Buscar dados atualizados da carteira atual
+      const portfolios = await supabaseStorage.getPortfolios();
+      const updatedPortfolio = portfolios.find(p => p.id === currentPortfolio.id);
+      
+      if (updatedPortfolio) {
+        const portfolioWithUpdatedPrices = await updatePortfolioWithCurrentPrices(updatedPortfolio);
+        setCurrentPortfolio(portfolioWithUpdatedPrices);
+        setPortfolios(portfolios); // Atualizar lista também
+        console.log("✅ Carteira atual recarregada com sucesso!");
+      }
+    } catch (error) {
+      console.error("❌ Erro ao recarregar carteira atual:", error);
     }
   };
 
@@ -184,7 +194,7 @@ export const PortfolioProvider = ({ children }) => {
 
     try {
       console.log("🔄 Atualizando preços da carteira atual...");
-      const updatedPortfolio = await updatePortfolioWithRealPrices(
+      const updatedPortfolio = await updatePortfolioWithCurrentPrices(
         currentPortfolio
       );
       setCurrentPortfolio(updatedPortfolio);
@@ -192,6 +202,62 @@ export const PortfolioProvider = ({ children }) => {
     } catch (error) {
       console.error("❌ Erro ao atualizar preços:", error);
       showNotification("Erro ao atualizar preços", "error");
+    }
+  };
+
+  // 🚀 NOVO: Atualizar investimentos existentes com dados de dividend_yield
+  const updateExistingInvestmentsWithDividendData = async () => {
+    if (!currentPortfolio || !currentPortfolio.investments) return;
+
+    try {
+      console.log("🔄 Atualizando investimentos existentes com dados de dividendo...");
+      showNotification("Atualizando dados de dividendos...", "info");
+
+      const investmentsToUpdate = currentPortfolio.investments.filter(
+        inv => inv.is_active && (!inv.dividend_yield || inv.dividend_yield === 0)
+      );
+
+      if (investmentsToUpdate.length === 0) {
+        showNotification("Todos os investimentos já têm dados de dividendo!", "success");
+        return;
+      }
+
+      console.log(`📊 Encontrados ${investmentsToUpdate.length} investimentos para atualizar:`, 
+        investmentsToUpdate.map(inv => inv.ticker));
+
+      // Buscar dados para cada investimento
+      for (const investment of investmentsToUpdate) {
+        try {
+          console.log(`🔍 Buscando dados para ${investment.ticker}...`);
+          const fiiData = await fiiDataAPI.getFII(investment.ticker);
+          
+          if (fiiData && fiiData.dividend_yield) {
+            // 🚀 TEMPORÁRIO: Só atualizar campos que existem na tabela
+            const updateData = {
+              dividend_yield: fiiData.dividend_yield,
+              current_price: fiiData.price,
+              // 🔧 COMENTADO até adicionar as colunas no banco:
+              // dividend_yield_monthly: fiiData.dividend_yield_monthly,
+              // pvp: fiiData.pvp,
+            };
+
+            console.log(`✅ Atualizando ${investment.ticker} com:`, updateData);
+            await supabaseStorage.updateInvestment(investment.id, updateData);
+          } else {
+            console.warn(`⚠️ Dados de dividendo não encontrados para ${investment.ticker}`);
+          }
+        } catch (error) {
+          console.error(`❌ Erro ao atualizar ${investment.ticker}:`, error);
+        }
+      }
+
+      // Recarregar carteira após atualizações
+      await reloadCurrentPortfolio();
+      showNotification("Dados de dividendos atualizados!", "success");
+      
+    } catch (error) {
+      console.error("❌ Erro ao atualizar dados de dividendos:", error);
+      showNotification("Erro ao atualizar dados de dividendos", "error");
     }
   };
 
@@ -254,12 +320,15 @@ export const PortfolioProvider = ({ children }) => {
   // 💰 Adicionar investimento
   const addInvestment = async (investmentData) => {
     try {
+      console.log("🚀 [PortfolioContext] Iniciando adição de investimento:", investmentData);
+      
       if (!currentPortfolio) {
         console.log("🆕 Criando carteira padrão para primeiro investimento");
         const defaultPortfolio = await createPortfolio({
           name: "Minha Carteira",
           description: "Carteira principal",
         });
+        
         await supabaseStorage.addInvestment(
           defaultPortfolio.id,
           investmentData
@@ -271,14 +340,17 @@ export const PortfolioProvider = ({ children }) => {
         );
       }
 
-      // Recarregar carteiras para atualizar totais
-      await loadPortfolios();
+      console.log("✅ [PortfolioContext] Investimento adicionado com sucesso");
       showNotification(
         `${investmentData.ticker} adicionado à carteira!`,
         "success"
       );
+      
+      // 🚀 AUTO-RELOAD: Recarregar carteira atual automaticamente
+      await reloadCurrentPortfolio();
+      
     } catch (error) {
-      console.error("Erro ao adicionar investimento:", error);
+      console.error("❌ Erro ao adicionar investimento:", error);
       showNotification("Erro ao adicionar investimento", "error");
       throw error;
     }
@@ -287,9 +359,16 @@ export const PortfolioProvider = ({ children }) => {
   // ✏️ Atualizar investimento
   const updateInvestment = async (investmentId, updates) => {
     try {
+      console.log("🚀 [PortfolioContext] Iniciando atualização de investimento:", investmentId, updates);
+      
       await supabaseStorage.updateInvestment(investmentId, updates);
-      await loadPortfolios();
+      
+      console.log("✅ [PortfolioContext] Investimento atualizado com sucesso");
       showNotification("Investimento atualizado!", "success");
+      
+      // 🚀 AUTO-RELOAD: Recarregar carteira atual automaticamente
+      await reloadCurrentPortfolio();
+      
     } catch (error) {
       console.error("Erro ao atualizar investimento:", error);
       showNotification("Erro ao atualizar investimento", "error");
@@ -300,9 +379,16 @@ export const PortfolioProvider = ({ children }) => {
   // 🗑️ Remover investimento
   const removeInvestment = async (investmentId) => {
     try {
+      console.log("🚀 [PortfolioContext] Iniciando remoção de investimento:", investmentId);
+      
       await supabaseStorage.removeInvestment(investmentId);
-      await loadPortfolios();
+      
+      console.log("✅ [PortfolioContext] Investimento removido com sucesso");
       showNotification("Investimento removido!", "success");
+      
+      // 🚀 AUTO-RELOAD: Recarregar carteira atual automaticamente
+      await reloadCurrentPortfolio();
+      
     } catch (error) {
       console.error("Erro ao remover investimento:", error);
       showNotification("Erro ao remover investimento", "error");
@@ -344,10 +430,10 @@ export const PortfolioProvider = ({ children }) => {
 
   // 🔄 Selecionar carteira atual
   const selectPortfolio = async (portfolio) => {
-    const portfolioWithRealPrices = await updatePortfolioWithRealPrices(
+    const portfolioWithUpdatedPrices = await updatePortfolioWithCurrentPrices(
       portfolio
     );
-    setCurrentPortfolio(portfolioWithRealPrices);
+    setCurrentPortfolio(portfolioWithUpdatedPrices);
   };
 
   // 📊 Calcular estatísticas da carteira
@@ -487,7 +573,8 @@ export const PortfolioProvider = ({ children }) => {
 
     // Utilitários
     getPortfolioStats,
-    refreshCurrentPortfolioPrices, // 🚀 NOVA FUNÇÃO
+    refreshCurrentPortfolioPrices,
+    updateExistingInvestmentsWithDividendData,
     exportData,
     importData,
     clearAllData,

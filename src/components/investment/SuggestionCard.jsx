@@ -38,6 +38,7 @@ const SuggestionCard = ({
     percentage,
     recommendedAmount,
     shares,
+    recommendedShares,
     investmentAmount,
     reasoning,
     strengths = [],

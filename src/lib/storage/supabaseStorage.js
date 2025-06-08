@@ -119,8 +119,6 @@ class SupabaseStorage {
   // Adicionar investimento
   async addInvestment(portfolioId, investmentData) {
     try {
-      console.log("📝 Dados recebidos para inserção:", investmentData);
-
       // Validações básicas
       const shares = investmentData.shares || 0;
       const averagePrice =
@@ -138,19 +136,7 @@ class SupabaseStorage {
       const totalInvested = shares * averagePrice;
       const currentValue = shares * currentPrice;
 
-      console.log("📊 Dados validados para inserção:", {
-        ticker: investmentData.ticker,
-        shares,
-        averagePrice,
-        currentPrice,
-        totalInvested,
-        currentValue,
-      });
-
-      const { data, error } = await supabase
-        .from("investments")
-        .insert([
-          {
+      const insertData = {
             portfolio_id: portfolioId,
             ticker: investmentData.ticker,
             name: investmentData.name || investmentData.ticker,
@@ -164,17 +150,22 @@ class SupabaseStorage {
             pvp: investmentData.pvp || investmentData.pvp_ratio || 0,
             is_active: true,
             created_at: new Date().toISOString(),
-          },
-        ])
+      };
+
+      const { data, error } = await supabase
+        .from("investments")
+        .insert([insertData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       console.log("✅ Investimento inserido com sucesso:", data);
       return data;
     } catch (error) {
-      console.error("Erro ao adicionar investimento:", error);
+      console.error("❌ Erro ao adicionar investimento:", error);
       throw error;
     }
   }

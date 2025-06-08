@@ -173,6 +173,10 @@ class FIIDataManager {
       net_equity: hybridData.net_equity,
       equity_per_share: hybridData.equity_per_share,
       
+      // 🚀 NOVO: Incluir setor e segmento
+      sector: hybridData.sector || 'Fundos Imobiliários',
+      segment: hybridData.segment || 'Híbrido',
+      
       // Metadados do sistema híbrido
       data_sources: hybridData.sources,
       data_quality: hybridData.validation,
